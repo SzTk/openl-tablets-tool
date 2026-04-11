@@ -1,0 +1,18 @@
+[project]
+name = "openl-tablets-tool"
+version = "0.1.0"
+description = "OpenL Tablets 形式 Excel ファイルの読み書き CLI ツール"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "openpyxl>=3.1.5",
+    "pandas>=3.0.2",
+    "pydantic>=2.12.5",
+    "pyyaml>=6.0.3",
+]
+
+[project.scripts]
+openl = "openl.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["openl*"]

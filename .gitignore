@@ -1,0 +1,21 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# 開発・テスト用の一時ファイル
+sample.xlsx
+sample.json
+sample_output.xlsx
+create_sample.py
+dump_json.py
+roundtrip_test.py
+excel_to_json.py
+json_to_excel.py
+main.py
