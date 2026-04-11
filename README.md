@@ -21,14 +21,14 @@ OpenL Tablets 形式の Excel ファイルを JSON/YAML に変換・編集・書
 
 **Windows (PowerShell):**
 ```powershell
-git clone https://github.com/<owner>/openl-tablets-tool
+git clone https://github.com/SzTk/openl-tablets-tool
 cd openl-tablets-tool
 .\install.ps1
 ```
 
 **Mac / Linux (bash):**
 ```bash
-git clone https://github.com/<owner>/openl-tablets-tool
+git clone https://github.com/SzTk/openl-tablets-tool
 cd openl-tablets-tool
 bash install.sh
 ```
