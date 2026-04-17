@@ -107,6 +107,7 @@ class SimpleDecisionTable(BaseModel):
     conditions: list[ColumnDef]    # 条件列定義
     results: list[ColumnDef]       # 結果列定義
     rules: list[Rule]
+    start_col: int = 1             # テーブル先頭列の 0-based インデックス
 
 
 class DataTableRow(BaseModel):
@@ -126,6 +127,7 @@ class DataTable(BaseModel):
     table_name: str      # インスタンス名 (例: AirportData, ConstantValue)
     columns: list[ColumnDef]
     rows: list[DataTableRow]
+    start_col: int = 1   # テーブル先頭列の 0-based インデックス
 
 
 class SpreadsheetParam(BaseModel):
@@ -153,6 +155,7 @@ class SpreadsheetTable(BaseModel):
     description: str | None = None
     parameters: list[SpreadsheetParam] = Field(default_factory=list)
     steps: list[SpreadsheetStep] = Field(default_factory=list)
+    start_col: int = 1   # テーブル先頭列の 0-based インデックス
     notes: list[str] = Field(default_factory=list)
 
 

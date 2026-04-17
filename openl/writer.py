@@ -66,81 +66,80 @@ def _append_row(ws: Worksheet, values: list) -> None:
 # ---------------------------------------------------------------------------
 
 def _write_simple_decision_table(ws: Worksheet, table: SimpleDecisionTable) -> None:
-    n_cond = len(table.conditions)
-    n_result = len(table.results)
+    prefix: list = [None] * table.start_col
 
-    # 行1: タイトル
-    _append_row(ws, [None, table.title])
+    # 行1: シグネチャー（"SimpleRules ..." 単一セル）
+    _append_row(ws, prefix + [table.method_signature])
 
-    # 行2: Method署名
-    _append_row(ws, [None, table.method_signature])
+    # 行2: カラムヘッダー（条件列名 + 結果列名）
+    headers = [c.name for c in table.conditions] + [r.name for r in table.results]
+    _append_row(ws, prefix + headers)
 
-    # 行3: テーブル宣言
-    _append_row(ws, [None, "Rules", "SimpleDecisionTable", table.table_name])
-
-    # 行4: 役割ラベル
-    # index: 0=None, 1="Condition"(ID列の上), 2〜2+n_cond-1=None(条件列),
-    #        2+n_cond="Result", ..., 末尾="備考"
-    role_row: list = [None, "Condition"]
-    role_row += [None] * n_cond                        # 全条件列分（ID列はConditionラベル自身が担う）
-    role_row += ["Result"] + [None] * (n_result - 1)
-    role_row += ["備考"]
-    _append_row(ws, role_row)
-
-    # 行5: ヘッダ行
-    header_row: list = [None, "ID"]
-    header_row += [_col_header(c.name, c.col_type) for c in table.conditions]
-    header_row += [_col_header(r.name, r.col_type) for r in table.results]
-    header_row += ["説明"]
-    _append_row(ws, header_row)
-
-    # 行6+: データ行
+    # 行3+: データ行（None = 空セル、"=" 始まりはテキスト型で書き込む）
     for rule in table.rules:
-        data_row: list = [None, rule.id]
-        data_row += [rule.conditions.get(c.name) for c in table.conditions]
-        data_row += [rule.results.get(r.name) for r in table.results]
-        data_row += [rule.notes]
-        _append_row(ws, data_row)
+        vals = [rule.conditions.get(c.name) for c in table.conditions]
+        vals += [rule.results.get(r.name) for r in table.results]
+        row_values = prefix + vals
+        _append_row(ws, row_values)
+        row_num = ws.max_row
+        for col_idx, val in enumerate(row_values, start=1):
+            if isinstance(val, str) and val.startswith("="):
+                cell = ws.cell(row=row_num, column=col_idx)
+                cell._value = val
+                cell.data_type = "s"
 
 
 def _write_data_table(ws: Worksheet, table: DataTable) -> None:
-    # 行1: タイトル
-    _append_row(ws, [None, table.title])
+    prefix: list = [None] * table.start_col
 
-    # 行2: テーブル宣言
-    _append_row(ws, [None, "Data", table.table_type, table.table_name])
+    # Enum 型判定: columns が value 1 列だけなら Enum
+    is_enum = len(table.columns) == 1 and table.columns[0].name == "value"
 
-    # 行3: ヘッダ行
-    header_row: list = [None] + [_col_header(c.name, c.col_type) for c in table.columns]
-    _append_row(ws, header_row)
+    # 宣言行: "Datatype {type}" または "Datatype {type} <{col_type}>"（ヘッダー行なし）
+    if is_enum:
+        decl = f"Datatype {table.table_type} <{table.columns[0].col_type}>"
+    else:
+        decl = f"Datatype {table.table_type}"
+    _append_row(ws, prefix + [decl])
 
-    # 行4+: データ行
+    # データ行
     for row in table.rows:
-        data_row: list = [None] + [row.data.get(c.name) for c in table.columns]
-        _append_row(ws, data_row)
+        vals = [row.data.get(c.name) for c in table.columns]
+        _append_row(ws, prefix + vals)
 
 
-def _write_spreadsheet_table(ws: Worksheet, table: SpreadsheetTable) -> None:
-    # 行1: タイトル
-    _append_row(ws, [None, table.title])
+def _write_spreadsheet_table(ws: Worksheet, table: SpreadsheetTable) -> tuple[int, int | None]:
+    """
+    SpreadsheetTable を書き込む。
+    戻り値: (header_row_num, last_step_row_num | None)
+      - 呼び出し側が _apply_sheet_styles 後に Bold / Border を再適用するために使う。
+    """
+    # 行1: 関数シグネチャー（OpenL "Spreadsheet" キーワード行）
+    _append_row(ws, [None, table.description])
 
-    # 行2: 説明
-    if table.description:
-        _append_row(ws, [None, table.description])
+    # 行2: カラムヘッダー
+    _append_row(ws, [None, "Step", "Description", "Value"])
+    hdr_row = ws.max_row
 
-    # 入力パラメータセクション
-    _append_row(ws, [None, "【入力パラメータ】"])
-    for param in table.parameters:
-        _append_row(ws, [None, param.name, param.value, param.description])
-
-    # 計算ステップセクション
-    _append_row(ws, [None, "【計算ステップ（OpenL式）】"])
+    # 行3+: 計算ステップ（Step | Description | Value 順）
+    # "= ..." で始まる OpenL 式は Excel 数式に解釈されないようテキスト型で書く
     for step in table.steps:
-        _append_row(ws, [None, step.label, step.value, step.unit])
+        row_values = [None, step.label, step.unit, step.value]
+        _append_row(ws, row_values)
+        step_row = ws.max_row
+        for col_idx, val in enumerate(row_values, start=1):
+            if isinstance(val, str) and val.startswith("="):
+                cell = ws.cell(row=step_row, column=col_idx)
+                cell._value = val
+                cell.data_type = "s"
+
+    last_step_row = ws.max_row if table.steps else None
 
     # 備考
     for note in table.notes:
         _append_row(ws, [None, note])
+
+    return hdr_row, last_step_row
 
 
 _WRITER_MAP = {
@@ -206,21 +205,60 @@ class OpenLWriter:
         wb = openpyxl.Workbook()
         wb.remove(wb.active)  # デフォルトシートを削除
 
+        # SpreadsheetTable の構造スタイル適用対象行を収集
+        # (sheet_name, row_num, 'header' | 'last_step')
+        struct_targets: list[tuple[str, int, str]] = []
+        # SpreadsheetTable を含むシートは行構造が変わるため sheet_styles を適用しない
+        spreadsheet_sheets: set[str] = set()
+
+        # 同じ sheet_name を持つテーブルは同じシートに追記する
         for table in workbook.tables:
-            ws = wb.create_sheet(title=table.sheet_name)
+            if table.sheet_name in wb.sheetnames:
+                ws = wb[table.sheet_name]
+                ws.append([])  # テーブル間に空行
+            else:
+                ws = wb.create_sheet(title=table.sheet_name)
+
             writer_fn = _WRITER_MAP.get(table.table_kind)
             if writer_fn is None:
                 raise ValueError(f"未対応のテーブル種別: {table.table_kind}")
-            writer_fn(ws, table)
 
-            # 書式を適用
-            sheet_style = workbook.sheet_styles.get(table.sheet_name, {})
-            if sheet_style:
-                _apply_sheet_styles(ws, sheet_style)
+            if table.table_kind == "SpreadsheetTable":
+                hdr_row, last_row = writer_fn(ws, table)
+                spreadsheet_sheets.add(table.sheet_name)
+                struct_targets.append((table.sheet_name, hdr_row, "header"))
+                if last_row:
+                    struct_targets.append((table.sheet_name, last_row, "last_step"))
+            else:
+                writer_fn(ws, table)
 
-            # 列幅・行高を適用
-            dims = workbook.sheet_dimensions.get(table.sheet_name)
+        # 全テーブル書き込み後にシートごとに列幅・行高を適用
+        # sheet_styles は行構造が変わるためすべてのシートでスキップ
+        for sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+            dims = workbook.sheet_dimensions.get(sheet_name)
             if dims:
                 _apply_sheet_dimensions(ws, dims)
+
+        # sheet_styles 適用後に SpreadsheetTable の構造スタイルを再適用
+        # (sheet_styles が全セルのフォントを上書きするため、後から Bold/Border を設定する)
+        for sheet_name, row_num, style_type in struct_targets:
+            ws = wb[sheet_name]
+            for col in (2, 3, 4):
+                cell = ws.cell(row=row_num, column=col)
+                # フォント名・サイズは sheet_styles が適用済みの値を引き継ぎ、Bold だけ上書き
+                cell.font = Font(
+                    name=cell.font.name,
+                    size=cell.font.size,
+                    bold=True,
+                    italic=cell.font.italic,
+                )
+                if style_type == "last_step":
+                    cell.border = Border(
+                        top=Side(style="thin"),
+                        bottom=cell.border.bottom,
+                        left=cell.border.left,
+                        right=cell.border.right,
+                    )
 
         wb.save(str(path))

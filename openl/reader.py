@@ -3,13 +3,13 @@ OpenL Tablets Excel Reader
 
 Excel シートを解析し OpenLWorkbook モデルに変換する。
 
-テーブル種別の判定ロジック:
-  シートの先頭データ行（Noneをスキップ）を走査し、
-  B列 (index 1) の値で判定する。
+テーブル種別の判定: シート内のセルを走査し、OpenL キーワードで始まるセルを検出する。
 
-  'Rules'       → SimpleDecisionTable
-  'Data'        → DataTable
-  'Spreadsheet' → SpreadsheetTable (フォールバック)
+  'SimpleRules ...'  → SimpleDecisionTable
+  'Spreadsheet ...'  → SpreadsheetTable
+  'Datatype ...'     → DataTable
+
+1シートに複数テーブルが存在する場合も対応。
 """
 
 from __future__ import annotations
@@ -29,277 +29,243 @@ from .models import (
     DataTable,
     DataTableRow,
     SpreadsheetTable,
-    SpreadsheetParam,
     SpreadsheetStep,
     OpenLWorkbook,
 )
 
 
-def _cell_value(ws: Worksheet, row: int, col: int) -> Any:
-    """1始まり行・列でセル値を取得。"""
-    return ws.cell(row=row, column=col).value
-
-
 def _rows_as_lists(ws: Worksheet) -> list[list[Any]]:
-    """シート全行を list[list] で返す（1始まりインデックスは使わず 0始まりリスト）。"""
-    return [
-        [cell.value for cell in row]
-        for row in ws.iter_rows()
-    ]
-
-
-def _find_table_header_row(rows: list[list[Any]]) -> int | None:
-    """
-    'Rules' / 'Data' / 'Spreadsheet' が B列(index=1)にある行インデックスを返す。
-    見つからなければ None。
-    """
-    keywords = {"Rules", "Data", "Spreadsheet"}
-    for i, row in enumerate(rows):
-        if len(row) > 1 and row[1] in keywords:
-            return i
-    return None
+    return [[cell.value for cell in row] for row in ws.iter_rows()]
 
 
 # ---------------------------------------------------------------------------
-# SimpleDecisionTable パーサ
+# テーブルヘッダー検索
 # ---------------------------------------------------------------------------
 
-def _parse_simple_decision_table(sheet_name: str, rows: list[list[Any]]) -> SimpleDecisionTable:
+_KEYWORDS = ("SimpleRules", "Spreadsheet", "Datatype")
+
+
+def _scan_table_headers(rows: list[list[Any]]) -> list[tuple[int, int, str]]:
     """
-    行レイアウト:
-      rows[0] : タイトル行
-      rows[1] : Module/Method宣言行
-      rows[2] : Rules | SimpleDecisionTable | テーブル名
-      rows[3] : Condition ... | Result ... (役割ラベル行)
-      rows[4] : ID | 列名(型) ... (ヘッダ行)
-      rows[5+]: データ行
+    シート内の全テーブル開始位置を返す: [(row_idx, col_idx, keyword), ...]
+    キーワード + スペースで始まるセルを探す。
     """
-    title = str(rows[0][1] or "").strip()
-    method_sig = str(rows[1][1] or "").strip()
-    table_name = str(rows[2][3] or "").strip()
+    results: list[tuple[int, int, str]] = []
+    seen_rows: set[int] = set()
 
-    # 役割ラベル行 (row index 3)
-    role_row = rows[3]
-    # ヘッダ行 (row index 4)
-    header_row = rows[4]
-
-    # B列以降の有効列数を特定（ヘッダ行でNoneでない列）
-    # ID列(index=1)を除いて解析
-    conditions: list[ColumnDef] = []
-    results: list[ColumnDef] = []
-
-    # 役割ラベルの解析: "Condition" が続く列は condition、"Result" 以降は result
-    # role_row: [None, 'Condition', None, None, None, 'Result', '備考']
-    # header_row: [None, 'ID', 'Origin (String)', ..., 'BasePrice (double)', '説明']
-
-    current_role = "condition"
-    note_col_index: int | None = None
-
-    for col_idx in range(2, len(header_row)):  # IDの次の列から
-        role_label = role_row[col_idx] if col_idx < len(role_row) else None
-        header = header_row[col_idx] if col_idx < len(header_row) else None
-
-        if role_label == "Result":
-            current_role = "result"
-        elif role_label in ("備考", "Note", "Notes"):
-            note_col_index = col_idx
+    for row_idx, row in enumerate(rows):
+        if row_idx in seen_rows:
+            continue
+        for col_idx, cell in enumerate(row):
+            if cell is None:
+                continue
+            s = str(cell).strip()
+            for kw in _KEYWORDS:
+                if s.startswith(kw + " "):
+                    results.append((row_idx, col_idx, kw))
+                    seen_rows.add(row_idx)
+                    break
+            else:
+                continue
             break
 
-        if header is None:
-            continue
+    return results
 
-        col_def = ColumnDef.parse(str(header), role=current_role)
-        if current_role == "condition":
-            conditions.append(col_def)
-        else:
-            results.append(col_def)
 
-    # データ行の解析 (row index 5 以降)
+# ---------------------------------------------------------------------------
+# パーサ
+# ---------------------------------------------------------------------------
+
+def _parse_simple_rules(
+    sheet_name: str,
+    rows: list[list[Any]],
+    start_row: int,
+    start_col: int,
+    end_row: int,
+) -> SimpleDecisionTable:
+    """
+    SimpleRules テーブルを解析する。
+
+    形式:
+      rows[start_row][start_col] : "SimpleRules ReturnType MethodName(params)"
+      rows[start_row+1][start_col:]: 列名（条件列...最後が結果列）
+      rows[start_row+2:end_row]  : データ行
+    """
+    method_sig = str(rows[start_row][start_col] or "").strip()
+
+    # テーブル名をシグネチャから抽出
+    # "SimpleRules TheftRating VehicleTheftRating (BodyType bodyType, ...)" → "VehicleTheftRating"
+    parts = method_sig.split()
+    table_name = parts[2].split("(")[0].strip() if len(parts) >= 3 else method_sig
+
+    # 列ヘッダー行
+    header_row = rows[start_row + 1] if start_row + 1 < len(rows) else []
+    col_headers: list[tuple[int, str]] = [
+        (col_idx, str(val).strip())
+        for col_idx in range(start_col, len(header_row))
+        if (val := header_row[col_idx]) is not None
+    ]
+
+    if not col_headers:
+        return SimpleDecisionTable(
+            sheet_name=sheet_name, title="", method_signature=method_sig,
+            table_name=table_name, conditions=[], results=[], rules=[],
+        )
+
+    # 最後の列が結果列、それ以外は条件列
+    conditions = [
+        ColumnDef(name=name, col_type="String", role="condition")
+        for _, name in col_headers[:-1]
+    ]
+    result_cols = [ColumnDef(name=col_headers[-1][1], col_type="String", role="result")]
+    col_indices = [idx for idx, _ in col_headers]
+    cond_names = [name for _, name in col_headers[:-1]]
+    result_name = col_headers[-1][1]
+
+    # データ行
     rules: list[Rule] = []
-    for row in rows[5:]:
+    rule_id = 1
+    for row in rows[start_row + 2:end_row]:
         if all(v is None for v in row):
             continue
-        rule_id = row[1]
-        if rule_id is None:
+        vals = [row[idx] if idx < len(row) else None for idx in col_indices]
+        if all(v is None for v in vals):
             continue
-
-        cond_values: dict[str, Any] = {}
-        result_values: dict[str, Any] = {}
-
-        # 条件列: index 2 〜 2+len(conditions)-1
-        for i, col_def in enumerate(conditions):
-            raw = row[2 + i] if (2 + i) < len(row) else None
-            cond_values[col_def.name] = raw
-
-        # 結果列: index 2+len(conditions) 〜
-        result_start = 2 + len(conditions)
-        for i, col_def in enumerate(results):
-            raw = row[result_start + i] if (result_start + i) < len(row) else None
-            result_values[col_def.name] = raw
-
-        # 備考列
-        note_value = None
-        if note_col_index is not None and note_col_index < len(row):
-            note_value = row[note_col_index]
-
         rules.append(Rule(
-            id=int(rule_id),
-            conditions=cond_values,
-            results=result_values,
-            notes=str(note_value) if note_value is not None else None,
+            id=rule_id,
+            conditions={name: vals[i] for i, name in enumerate(cond_names)},
+            results={result_name: vals[-1]},
         ))
+        rule_id += 1
 
     return SimpleDecisionTable(
         sheet_name=sheet_name,
-        title=title,
+        title="",
         method_signature=method_sig,
         table_name=table_name,
         conditions=conditions,
-        results=results,
+        results=result_cols,
         rules=rules,
+        start_col=start_col,
     )
 
 
-# ---------------------------------------------------------------------------
-# DataTable パーサ
-# ---------------------------------------------------------------------------
-
-def _parse_data_table(sheet_name: str, rows: list[list[Any]]) -> DataTable:
+def _parse_spreadsheet(
+    sheet_name: str,
+    rows: list[list[Any]],
+    start_row: int,
+    start_col: int,
+    end_row: int,
+) -> SpreadsheetTable:
     """
-    行レイアウト:
-      rows[0] : タイトル行
-      rows[1] : Data | テーブル型 | テーブル名
-      rows[2] : 列名(型) ... ヘッダ行
-      rows[3+]: データ行
+    Spreadsheet テーブルを解析する。
+
+    形式:
+      rows[start_row][start_col]   : "Spreadsheet ReturnType MethodName(params)"
+      rows[start_row+1][start_col:]: "Step", "Description", "Value" ヘッダー
+      rows[start_row+2:end_row]    : ステップ行 (label, description, value)
     """
-    title = str(rows[0][1] or "").strip()
-    table_type = str(rows[1][2] or "").strip()
-    table_name = str(rows[1][3] or "").strip()
+    method_sig = str(rows[start_row][start_col] or "").strip()
 
-    # ヘッダ行 (index 2)
-    header_row = rows[2]
-    columns: list[ColumnDef] = []
-    col_indices: list[int] = []
-
-    for col_idx in range(1, len(header_row)):
-        header = header_row[col_idx]
-        if header is None:
-            continue
-        col_def = ColumnDef.parse(str(header), role="data")
-        columns.append(col_def)
-        col_indices.append(col_idx)
-
-    # データ行 (index 3 以降)
-    data_rows: list[DataTableRow] = []
-    for row in rows[3:]:
-        if all(v is None for v in row):
-            continue
-        row_data: dict[str, Any] = {}
-        for col_def, col_idx in zip(columns, col_indices):
-            row_data[col_def.name] = row[col_idx] if col_idx < len(row) else None
-        data_rows.append(DataTableRow(data=row_data))
-
-    return DataTable(
-        sheet_name=sheet_name,
-        title=title,
-        table_type=table_type,
-        table_name=table_name,
-        columns=columns,
-        rows=data_rows,
-    )
-
-
-# ---------------------------------------------------------------------------
-# SpreadsheetTable パーサ
-# ---------------------------------------------------------------------------
-
-def _parse_spreadsheet_table(sheet_name: str, rows: list[list[Any]]) -> SpreadsheetTable:
-    """
-    FinalPriceCalc のような自由形式シートを解析する。
-    B列にラベル、C列に値、D列に説明/単位を持つ行を走査する。
-    """
-    title = str(rows[0][1] or "").strip()
-    description: str | None = None
-    parameters: list[SpreadsheetParam] = []
     steps: list[SpreadsheetStep] = []
-    notes: list[str] = []
-
-    # 解析ステート
-    in_params = False
-    in_steps = False
-
-    for row in rows[1:]:
+    for row in rows[start_row + 2:end_row]:
         if all(v is None for v in row):
             continue
-
-        b = row[1] if len(row) > 1 else None
-        c = row[2] if len(row) > 2 else None
-        d = row[3] if len(row) > 3 else None
-
-        if b is None:
+        label = row[start_col] if start_col < len(row) else None
+        desc  = row[start_col + 1] if start_col + 1 < len(row) else None
+        val   = row[start_col + 2] if start_col + 2 < len(row) else None
+        if label is None:
             continue
-
-        b_str = str(b).strip()
-
-        # セクション切り替え
-        if "入力パラメータ" in b_str:
-            in_params = True
-            in_steps = False
-            continue
-        if "計算ステップ" in b_str:
-            in_params = False
-            in_steps = True
-            continue
-        if b_str.startswith("※") or b_str.startswith("*"):
-            notes.append(b_str)
-            continue
-        if description is None and c is None and d is None and not in_params and not in_steps:
-            description = b_str
-            continue
-
-        if in_params and c is not None:
-            parameters.append(SpreadsheetParam(
-                name=b_str,
-                value=c,
-                description=str(d).strip() if d else None,
-            ))
-        elif in_steps and b_str:
-            steps.append(SpreadsheetStep(
-                label=b_str,
-                value=c,
-                unit=str(d).strip() if d else None,
-            ))
+        steps.append(SpreadsheetStep(
+            label=str(label).strip(),
+            value=val,
+            unit=str(desc).strip() if desc is not None else None,
+        ))
 
     return SpreadsheetTable(
         sheet_name=sheet_name,
-        title=title,
-        description=description,
-        parameters=parameters,
+        title="",
+        description=method_sig,
         steps=steps,
-        notes=notes,
+        start_col=start_col,
     )
+
+
+def _parse_datatype(
+    sheet_name: str,
+    rows: list[list[Any]],
+    start_row: int,
+    start_col: int,
+    end_row: int,
+) -> DataTable:
+    """
+    Datatype テーブルを解析する。
+
+    形式:
+      rows[start_row][start_col]: "Datatype TypeName" または "Datatype TypeName <BaseType>"
+      rows[start_row+1:end_row] : フィールド行 (fieldType, fieldName, defaultValue)
+                                   または enum 値行 (value のみ)
+    """
+    decl = str(rows[start_row][start_col] or "").strip()
+    parts = decl.split()
+    type_name = parts[1].strip("<>") if len(parts) >= 2 else decl
+    is_enum = "<" in decl
+
+    if is_enum:
+        columns = [ColumnDef(name="value", col_type="String", role="data")]
+    else:
+        columns = [
+            ColumnDef(name="fieldType",     col_type="String", role="data"),
+            ColumnDef(name="fieldName",     col_type="String", role="data"),
+            ColumnDef(name="defaultValue",  col_type="String", role="data"),
+        ]
+
+    data_rows: list[DataTableRow] = []
+    for row in rows[start_row + 1:end_row]:
+        if all(v is None for v in row):
+            continue
+        v1 = row[start_col]     if start_col     < len(row) else None
+        v2 = row[start_col + 1] if start_col + 1 < len(row) else None
+        v3 = row[start_col + 2] if start_col + 2 < len(row) else None
+        if v1 is None and v2 is None:
+            continue
+        if is_enum:
+            data_rows.append(DataTableRow(data={"value": v1}))
+        else:
+            data_rows.append(DataTableRow(data={"fieldType": v1, "fieldName": v2, "defaultValue": v3}))
+
+    return DataTable(
+        sheet_name=sheet_name,
+        title="",
+        table_type=type_name,
+        table_name=type_name,
+        columns=columns,
+        rows=data_rows,
+        start_col=start_col,
+    )
+
+
+_PARSERS = {
+    "SimpleRules": _parse_simple_rules,
+    "Spreadsheet": _parse_spreadsheet,
+    "Datatype":    _parse_datatype,
+}
 
 
 # ---------------------------------------------------------------------------
 # スタイル・サイズ読み取り
 # ---------------------------------------------------------------------------
 
-_DEFAULT_FONT_COLORS = {"FF000000", "00000000", ""}   # 黒・透明 = デフォルト扱い
+_DEFAULT_FONT_COLORS = {"FF000000", "00000000", ""}
 _DEFAULT_FILL_COLORS = {"00000000", "FFFFFFFF", ""}
 
 
 def _border_style(side) -> str | None:
-    """openpyxl の Side オブジェクトからスタイル文字列を返す。なければ None。"""
     return side.style if side and side.style else None
 
 
 def _read_sheet_styles(ws: Worksheet) -> dict[str, CellStyle]:
-    """
-    ワークシートの全セルを走査し、デフォルト以外の書式を持つセルのスタイルを返す。
-    戻り値: {セル番地 (例: "B1") → CellStyle}
-    """
     styles: dict[str, CellStyle] = {}
-
     for row in ws.iter_rows():
         for cell in row:
             font = cell.font
@@ -307,35 +273,25 @@ def _read_sheet_styles(ws: Worksheet) -> dict[str, CellStyle]:
             border = cell.border
             nf = cell.number_format or "General"
 
-            # フォント名（デフォルト=Calibri は None として扱う）
             font_name: str | None = None
             if font.name and font.name != _DEFAULT_FONT_NAME:
                 font_name = font.name
 
-            # フォントサイズ（デフォルト=11.0pt は None として扱う）
             font_size: float | None = None
             if font.size and font.size != _DEFAULT_FONT_SIZE:
                 font_size = float(font.size)
 
-            # フォントカラー
             font_color: str | None = None
             if font.color and font.color.type == "rgb":
                 rgb = font.color.rgb
                 if rgb not in _DEFAULT_FONT_COLORS:
                     font_color = rgb
 
-            # 塗りつぶし（solid のみ対象）
             fill_color: str | None = None
             if fill.fill_type == "solid" and fill.fgColor.type == "rgb":
                 rgb = fill.fgColor.rgb
                 if rgb not in _DEFAULT_FILL_COLORS:
                     fill_color = rgb
-
-            # 罫線
-            b_top    = _border_style(border.top)
-            b_bottom = _border_style(border.bottom)
-            b_left   = _border_style(border.left)
-            b_right  = _border_style(border.right)
 
             style = CellStyle(
                 bold=bool(font.bold),
@@ -345,29 +301,19 @@ def _read_sheet_styles(ws: Worksheet) -> dict[str, CellStyle]:
                 font_color=font_color,
                 fill_color=fill_color,
                 number_format=nf,
-                border_top=b_top,
-                border_bottom=b_bottom,
-                border_left=b_left,
-                border_right=b_right,
+                border_top=_border_style(border.top),
+                border_bottom=_border_style(border.bottom),
+                border_left=_border_style(border.left),
+                border_right=_border_style(border.right),
             )
             if not style.is_default():
                 styles[cell.coordinate] = style
-
     return styles
 
 
 def _read_sheet_dimensions(ws: Worksheet) -> SheetDimensions | None:
-    """列幅・行高をシートから読み取る。設定がなければ None を返す。"""
-    col_widths: dict[str, float] = {}
-    for col_letter, col_dim in ws.column_dimensions.items():
-        if col_dim.width:
-            col_widths[col_letter] = col_dim.width
-
-    row_heights: dict[str, float] = {}
-    for row_num, row_dim in ws.row_dimensions.items():
-        if row_dim.height:
-            row_heights[str(row_num)] = row_dim.height
-
+    col_widths = {ltr: dim.width for ltr, dim in ws.column_dimensions.items() if dim.width}
+    row_heights = {str(n): dim.height for n, dim in ws.row_dimensions.items() if dim.height}
     if not col_widths and not row_heights:
         return None
     return SheetDimensions(column_widths=col_widths, row_heights=row_heights)
@@ -376,13 +322,6 @@ def _read_sheet_dimensions(ws: Worksheet) -> SheetDimensions | None:
 # ---------------------------------------------------------------------------
 # メインリーダ
 # ---------------------------------------------------------------------------
-
-TABLE_KIND_MAP = {
-    "Rules": _parse_simple_decision_table,
-    "Data": _parse_data_table,
-    "Spreadsheet": _parse_spreadsheet_table,
-}
-
 
 class OpenLReader:
     def read(self, path: str | Path) -> OpenLWorkbook:
@@ -397,24 +336,21 @@ class OpenLReader:
             if all(all(v is None for v in row) for row in rows):
                 continue
 
-            # テーブルデータの解析
-            header_row_idx = _find_table_header_row(rows)
-            if header_row_idx is None:
-                table = _parse_spreadsheet_table(sheet_name, rows)
-            else:
-                kind_key = rows[header_row_idx][1]
-                parser = TABLE_KIND_MAP.get(kind_key, _parse_spreadsheet_table)
-                start = max(0, header_row_idx - 2)
-                table = parser(sheet_name, rows[start:])
+            headers = _scan_table_headers(rows)
 
-            workbook.tables.append(table)
+            if not headers:
+                continue  # OpenL テーブルが見つからないシートはスキップ
 
-            # 書式の読み取り
+            for i, (row_idx, col_idx, keyword) in enumerate(headers):
+                end_row = headers[i + 1][0] if i + 1 < len(headers) else len(rows)
+                parser = _PARSERS[keyword]
+                table = parser(sheet_name, rows, row_idx, col_idx, end_row)
+                workbook.tables.append(table)
+
             sheet_style = _read_sheet_styles(ws)
             if sheet_style:
                 workbook.sheet_styles[sheet_name] = sheet_style
 
-            # 列幅・行高の読み取り
             dims = _read_sheet_dimensions(ws)
             if dims:
                 workbook.sheet_dimensions[sheet_name] = dims
