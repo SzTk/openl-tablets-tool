@@ -1,0 +1,23 @@
+OpenL Tablets Tool
+Copyright (c) 2024 Takayuki Suzuki
+
+This product includes third-party components listed below.
+
+--------------------------------------------------------------------------------
+AutoPolicyCalculation.xlsx
+--------------------------------------------------------------------------------
+
+This file is reproduced from the OpenL Tablets tutorial materials, originally
+available at:
+
+  https://openl-tablets.org/documentation/tutorials
+
+Copyright (c) 2003-present, EPAM Systems, Inc. and the OpenL Tablets
+contributors.
+
+The file is redistributed under the terms of the GNU Lesser General Public
+License, version 2.1 (LGPL-2.1). A copy of the LGPL-2.1 is included in this
+distribution at: licenses/LGPL-2.1.txt
+
+The original source of OpenL Tablets is available at:
+  https://github.com/openl-tablets/openl-tablets
