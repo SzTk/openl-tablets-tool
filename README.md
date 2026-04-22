@@ -35,7 +35,10 @@ bash install.sh
 
 インストールスクリプトは以下を実行します：
 1. `openl` コマンドをグローバルインストール (`uv tool install`)
-2. Claude Code スキルを `~/.claude/skills/openl-edit/` に配置
+2. Claude Code スキルを `~/.claude/skills/` に配置
+   - `openl-edit/` — 既存 Excel の編集スキル
+   - `openl-new/` — 新規作成スキル
+   - `openl-lib/` — 両スキルが参照する共有スキーマ定義
 
 ### 手動インストール
 
@@ -44,35 +47,37 @@ bash install.sh
 uv tool install .
 
 # スキルのみ
-mkdir -p ~/.claude/skills/openl-edit
+mkdir -p ~/.claude/skills/openl-edit ~/.claude/skills/openl-new ~/.claude/skills/openl-lib
 cp skills/openl-edit/SKILL.md ~/.claude/skills/openl-edit/SKILL.md
+cp skills/openl-new/SKILL.md  ~/.claude/skills/openl-new/SKILL.md
+cp skills/openl-lib/SCHEMA.md ~/.claude/skills/openl-lib/SCHEMA.md
 ```
 
 ## CLI の使い方
 
 ```bash
 # Excel → JSON（編集用）
-openl read TicketsPrice.xlsx
+openl read MyRules.xlsx
 
 # Excel → YAML
-openl read TicketsPrice.xlsx --format yaml
+openl read MyRules.xlsx --format yaml
 
 # JSON/YAML → Excel（書き戻し）
-openl write TicketsPrice.json
+openl write MyRules.json
 
 # 出力先を指定
-openl write TicketsPrice.json --out TicketsPrice_updated.xlsx
+openl write MyRules.json --out MyRules_updated.xlsx
 
 # ラウンドトリップ確認
-openl roundtrip TicketsPrice.xlsx
+openl roundtrip MyRules.xlsx
 ```
 
 ## Claude Code スキルの使い方
 
-Claude Code のチャットで以下のように呼び出します：
+### openl-edit — 既存ファイルの編集
 
 ```
-/openl-edit TicketsPrice.xlsx
+/openl-edit MyRules.xlsx
 ```
 
 スキルが以下を自動で行います：
@@ -82,14 +87,36 @@ Claude Code のチャットで以下のように呼び出します：
 4. JSON 編集
 5. JSON → Excel 書き戻し
 
-**編集の例:**
 ```
-> /openl-edit TicketsPrice.xlsx
+> /openl-edit MyRules.xlsx
 (構造が表示される)
 
 > NGO→SIN エコノミー 大人 を 35,000円で追加して
 > 燃油サーチャージ率を10%に変更して
 ```
+
+### openl-new — 新規ファイルの作成
+
+```
+/openl-new MyNewRules.json
+```
+
+以下の 3 層構造を対話的に設計します：
+
+```
+SpreadsheetTable    ← API エントリポイント（出力項目を定義）
+      ↓ メソッド呼び出し
+SimpleDecisionTable ← 各出力項目の計算ロジック（条件→結果ルール）
+      ↓ 値域の参照
+DataTable           ← マスタデータ・定数
+```
+
+ヒアリングの流れ：
+1. **API 出力項目** — SpreadsheetTable の steps（出力項目名・型・呼び出すメソッド）
+2. **計算ロジック** — 各 step が呼ぶ SimpleDecisionTable の条件・結果・ルール
+3. **マスタデータ** — Claude が DataTable 候補を提案、ユーザーが採否を決定
+
+最後に **往復検証**（JSON → Excel → JSON）を実行し、生成した JSON が正しく変換できることを確認します。
 
 ## ディレクトリ構成
 
@@ -101,8 +128,12 @@ openl-tablets-tool/
 │   ├── writer.py       # モデル → Excel ライタ
 │   └── cli.py          # CLI エントリポイント
 ├── skills/
-│   └── openl-edit/
-│       └── SKILL.md    # Claude Code スキル定義
+│   ├── openl-edit/
+│   │   └── SKILL.md    # 既存 Excel 編集スキル
+│   ├── openl-new/
+│   │   └── SKILL.md    # 新規作成スキル
+│   └── openl-lib/
+│       └── SCHEMA.md   # 共有 JSON スキーマ定義
 ├── install.sh          # インストールスクリプト (Mac/Linux)
 ├── install.ps1         # インストールスクリプト (Windows)
 ├── pyproject.toml      # プロジェクト設定

@@ -118,13 +118,14 @@ def _write_spreadsheet_table(ws: Worksheet, table: SpreadsheetTable) -> tuple[in
     _append_row(ws, [None, table.description])
 
     # 行2: カラムヘッダー
-    _append_row(ws, [None, "Step", "Description", "Value"])
+    _append_row(ws, [None] + list(table.column_names))
     hdr_row = ws.max_row
 
-    # 行3+: 計算ステップ（Step | Description | Value 順）
+    # 行3+: 計算ステップ（column_names の列数に合わせて書く）
     # "= ..." で始まる OpenL 式は Excel 数式に解釈されないようテキスト型で書く
+    three_cols = len(table.column_names) >= 3
     for step in table.steps:
-        row_values = [None, step.label, step.unit, step.value]
+        row_values = [None, step.label, step.unit, step.value] if three_cols else [None, step.label, step.value]
         _append_row(ws, row_values)
         step_row = ws.max_row
         for col_idx, val in enumerate(row_values, start=1):

@@ -4,9 +4,9 @@
 
 set -e
 
-SKILL_NAME="openl-edit"
-SKILL_DST="$HOME/.claude/skills/$SKILL_NAME"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SKILLS_SRC="$SCRIPT_DIR/skills"
+SKILLS_DST="$HOME/.claude/skills"
 
 echo "=== OpenL Tablets Tool インストール ==="
 
@@ -20,9 +20,22 @@ echo "      openl コマンド: OK ($(openl --version 2>/dev/null || echo instal
 
 # 2. Claude Code スキルをインストール
 echo "[2/2] Claude Code スキルをインストール中..."
-mkdir -p "$SKILL_DST"
-cp "$SCRIPT_DIR/skills/$SKILL_NAME/SKILL.md" "$SKILL_DST/SKILL.md"
-echo "      スキル配置先: $SKILL_DST/SKILL.md"
+
+install_skill() {
+  local name="$1"
+  local dst="$SKILLS_DST/$name"
+  mkdir -p "$dst"
+  cp "$SKILLS_SRC/$name/SKILL.md" "$dst/SKILL.md"
+  echo "      $name → $dst/SKILL.md"
+}
+
+install_skill "openl-edit"
+install_skill "openl-new"
+
+# openl-lib（共有スキーマ）をコピー
+mkdir -p "$SKILLS_DST/openl-lib"
+cp "$SKILLS_SRC/openl-lib/SCHEMA.md" "$SKILLS_DST/openl-lib/SCHEMA.md"
+echo "      openl-lib → $SKILLS_DST/openl-lib/SCHEMA.md"
 
 echo ""
 echo "✅ インストール完了"
@@ -33,4 +46,5 @@ echo "  openl write <file.json>          # JSON → Excel"
 echo "  openl roundtrip <file.xlsx>      # 動作確認"
 echo ""
 echo "Claude Code から:"
-echo "  /openl-edit <file.xlsx>"
+echo "  /openl-edit <file.xlsx>          # 既存 Excel を編集"
+echo "  /openl-new  [output.json]        # 新規作成"

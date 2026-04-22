@@ -155,6 +155,7 @@ class SpreadsheetTable(BaseModel):
     description: str | None = None
     parameters: list[SpreadsheetParam] = Field(default_factory=list)
     steps: list[SpreadsheetStep] = Field(default_factory=list)
+    column_names: list[str] = Field(default_factory=lambda: ["Step", "Description", "Value"])
     start_col: int = 1   # テーブル先頭列の 0-based インデックス
     notes: list[str] = Field(default_factory=list)
 

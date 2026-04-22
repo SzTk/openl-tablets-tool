@@ -3,9 +3,9 @@
 
 $ErrorActionPreference = "Stop"
 
-$SkillName = "openl-edit"
-$SkillDst  = "$env:USERPROFILE\.claude\skills\$SkillName"
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ScriptDir  = Split-Path -Parent $MyInvocation.MyCommand.Path
+$SkillsSrc  = "$ScriptDir\skills"
+$SkillsDst  = "$env:USERPROFILE\.claude\skills"
 
 Write-Host "=== OpenL Tablets Tool インストール ===" -ForegroundColor Cyan
 
@@ -23,9 +23,23 @@ Write-Host "      openl コマンド: インストール完了" -ForegroundColor
 
 # 2. Claude Code スキルをインストール
 Write-Host "[2/2] Claude Code スキルをインストール中..."
-New-Item -ItemType Directory -Force -Path $SkillDst | Out-Null
-Copy-Item "$ScriptDir\skills\$SkillName\SKILL.md" "$SkillDst\SKILL.md" -Force
-Write-Host "      スキル配置先: $SkillDst\SKILL.md" -ForegroundColor Green
+
+function Install-Skill {
+    param([string]$Name)
+    $dst = "$SkillsDst\$Name"
+    New-Item -ItemType Directory -Force -Path $dst | Out-Null
+    Copy-Item "$SkillsSrc\$Name\SKILL.md" "$dst\SKILL.md" -Force
+    Write-Host "      $Name -> $dst\SKILL.md" -ForegroundColor Green
+}
+
+Install-Skill "openl-edit"
+Install-Skill "openl-new"
+
+# openl-lib（共有スキーマ）をコピー
+$libDst = "$SkillsDst\openl-lib"
+New-Item -ItemType Directory -Force -Path $libDst | Out-Null
+Copy-Item "$SkillsSrc\openl-lib\SCHEMA.md" "$libDst\SCHEMA.md" -Force
+Write-Host "      openl-lib -> $libDst\SCHEMA.md" -ForegroundColor Green
 
 Write-Host ""
 Write-Host "✅ インストール完了" -ForegroundColor Green
@@ -36,4 +50,5 @@ Write-Host "  openl write <file.json>     # JSON -> Excel"
 Write-Host "  openl roundtrip <file.xlsx> # 動作確認"
 Write-Host ""
 Write-Host "Claude Code から:"
-Write-Host "  /openl-edit <file.xlsx>"
+Write-Host "  /openl-edit <file.xlsx>     # 既存 Excel を編集"
+Write-Host "  /openl-new  [output.json]   # 新規作成"

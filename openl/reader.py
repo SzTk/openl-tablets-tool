@@ -167,13 +167,29 @@ def _parse_spreadsheet(
     """
     method_sig = str(rows[start_row][start_col] or "").strip()
 
+    # ヘッダー行からカラム名を読み取る（None セルで打ち切り、最低1列）
+    hdr_row = rows[start_row + 1] if start_row + 1 < len(rows) else []
+    col_names: list[str] = []
+    for i in range(3):
+        v = hdr_row[start_col + i] if start_col + i < len(hdr_row) else None
+        if v is None:
+            break
+        col_names.append(str(v).strip())
+    if not col_names:
+        col_names = ["Step", "Description", "Value"]
+
+    three_cols = len(col_names) >= 3
     steps: list[SpreadsheetStep] = []
     for row in rows[start_row + 2:end_row]:
         if all(v is None for v in row):
             continue
         label = row[start_col] if start_col < len(row) else None
-        desc  = row[start_col + 1] if start_col + 1 < len(row) else None
-        val   = row[start_col + 2] if start_col + 2 < len(row) else None
+        if three_cols:
+            desc = row[start_col + 1] if start_col + 1 < len(row) else None
+            val  = row[start_col + 2] if start_col + 2 < len(row) else None
+        else:
+            desc = None
+            val  = row[start_col + 1] if start_col + 1 < len(row) else None
         if label is None:
             continue
         steps.append(SpreadsheetStep(
@@ -187,6 +203,7 @@ def _parse_spreadsheet(
         title="",
         description=method_sig,
         steps=steps,
+        column_names=col_names,
         start_col=start_col,
     )
 

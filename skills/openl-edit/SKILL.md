@@ -100,53 +100,9 @@ openl write <JSONファイルパス> --out <元ファイル名>_edited.xlsx
 出力ファイル: <出力パス>
 ```
 
-## JSON スキーマ早見表
+## JSON スキーマ
 
-```jsonc
-{
-  "source_file": "file.xlsx",
-  "tables": [
-    // SimpleDecisionTable
-    {
-      "table_kind": "SimpleDecisionTable",
-      "sheet_name": "PriceRules",
-      "title": "...",
-      "method_signature": "Module: ... | Method: ...",
-      "table_name": "TicketsBasePrice",
-      "conditions": [
-        { "name": "Origin", "col_type": "String", "role": "condition" }
-      ],
-      "results": [
-        { "name": "BasePrice", "col_type": "double", "role": "result" }
-      ],
-      "rules": [
-        {
-          "id": 1,
-          "conditions": { "Origin": "\"NRT\"", "Age": ">= 12 && < 65" },
-          "results": { "BasePrice": 80000 },
-          "notes": "説明テキスト"
-        }
-      ]
-    },
-    // DataTable
-    {
-      "table_kind": "DataTable",
-      "sheet_name": "Constants",
-      "table_type": "Constants",
-      "table_name": "ConstantValue",
-      "columns": [
-        { "name": "Name", "col_type": "String", "role": "data" },
-        { "name": "Value", "col_type": "double", "role": "data" }
-      ],
-      "rows": [
-        { "data": { "Name": "\"FUEL_SURCHARGE_RATE\"", "Value": 0.08 } }
-      ]
-    }
-  ],
-  "sheet_styles": {},     // セル書式 - 通常編集不要
-  "sheet_dimensions": {}  // 列幅・行高 - 通常編集不要
-}
-```
+JSON 構造・型記法・制約の詳細は `skills/openl-lib/SCHEMA.md` を Read して参照すること。
 
 ## 注意事項
 
