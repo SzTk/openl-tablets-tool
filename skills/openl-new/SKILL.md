@@ -1,6 +1,7 @@
 ---
 name: openl-new
 description: OpenL Tablets 形式の Excel ファイルを対話的に新規作成する。API出力項目→計算ロジック→マスタデータの順でヒアリングし、JSON を生成・往復検証して Excel を出力する。
+license: MIT
 metadata:
   argument-hint: "[output_file_name]"
 allowed-tools: Bash Read Write Edit
