@@ -29,8 +29,8 @@ install_skill() {
   echo "      $name → $dst/SKILL.md"
 }
 
-install_skill "openl-edit"
-install_skill "openl-new"
+install_skill "openl-tablets-edit"
+install_skill "openl-tablets-create"
 
 # openl-lib（共有スキーマ）をコピー
 mkdir -p "$SKILLS_DST/openl-lib"
@@ -46,5 +46,5 @@ echo "  openl write <file.json>          # JSON → Excel"
 echo "  openl roundtrip <file.xlsx>      # 動作確認"
 echo ""
 echo "Claude Code から:"
-echo "  /openl-edit <file.xlsx>          # 既存 Excel を編集"
-echo "  /openl-new  [output.json]        # 新規作成"
+echo "  /openl-tablets-edit <file.xlsx>        # 既存 Excel を編集"
+echo "  /openl-tablets-create [output.json]   # 新規作成"

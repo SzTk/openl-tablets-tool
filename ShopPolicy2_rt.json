@@ -1,0 +1,370 @@
+{
+  "source_file": "ShopPolicy2_draft.xlsx",
+  "tables": [
+    {
+      "table_kind": "SpreadsheetTable",
+      "sheet_name": "Calculation",
+      "title": "",
+      "description": "Spreadsheet SpreadsheetResult DetermineShopPolicy (String memberType, int purchaseAmount)",
+      "parameters": [],
+      "steps": [
+        {
+          "label": "FreeShipping",
+          "value": "= GetFreeShipping(memberType, purchaseAmount)",
+          "unit": null
+        },
+        {
+          "label": "PointRate",
+          "value": "= GetPointRate(memberType, purchaseAmount)",
+          "unit": null
+        }
+      ],
+      "column_names": [
+        "Step",
+        "Value",
+        "Value"
+      ],
+      "start_col": 1,
+      "notes": []
+    },
+    {
+      "table_kind": "SimpleDecisionTable",
+      "sheet_name": "FreeShipping",
+      "title": "",
+      "method_signature": "SimpleRules Boolean GetFreeShipping (String memberType, int purchaseAmount)",
+      "table_name": "GetFreeShipping",
+      "conditions": [
+        {
+          "name": "会員種別",
+          "col_type": "String",
+          "role": "condition"
+        },
+        {
+          "name": "購入金額",
+          "col_type": "String",
+          "role": "condition"
+        }
+      ],
+      "results": [
+        {
+          "name": "送料無料",
+          "col_type": "String",
+          "role": "result"
+        }
+      ],
+      "rules": [
+        {
+          "id": 1,
+          "conditions": {
+            "会員種別": "非会員",
+            "購入金額": "< 3000"
+          },
+          "results": {
+            "送料無料": false
+          },
+          "notes": null
+        },
+        {
+          "id": 2,
+          "conditions": {
+            "会員種別": "非会員",
+            "購入金額": "3000 .. 9999"
+          },
+          "results": {
+            "送料無料": false
+          },
+          "notes": null
+        },
+        {
+          "id": 3,
+          "conditions": {
+            "会員種別": "非会員",
+            "購入金額": ">= 10000"
+          },
+          "results": {
+            "送料無料": true
+          },
+          "notes": null
+        },
+        {
+          "id": 4,
+          "conditions": {
+            "会員種別": "一般会員",
+            "購入金額": "< 3000"
+          },
+          "results": {
+            "送料無料": false
+          },
+          "notes": null
+        },
+        {
+          "id": 5,
+          "conditions": {
+            "会員種別": "一般会員",
+            "購入金額": "3000 .. 9999"
+          },
+          "results": {
+            "送料無料": true
+          },
+          "notes": null
+        },
+        {
+          "id": 6,
+          "conditions": {
+            "会員種別": "一般会員",
+            "購入金額": ">= 10000"
+          },
+          "results": {
+            "送料無料": true
+          },
+          "notes": null
+        },
+        {
+          "id": 7,
+          "conditions": {
+            "会員種別": "プレミアム会員",
+            "購入金額": "< 3000"
+          },
+          "results": {
+            "送料無料": true
+          },
+          "notes": null
+        },
+        {
+          "id": 8,
+          "conditions": {
+            "会員種別": "プレミアム会員",
+            "購入金額": "3000 .. 9999"
+          },
+          "results": {
+            "送料無料": true
+          },
+          "notes": null
+        },
+        {
+          "id": 9,
+          "conditions": {
+            "会員種別": "プレミアム会員",
+            "購入金額": ">= 10000"
+          },
+          "results": {
+            "送料無料": true
+          },
+          "notes": null
+        }
+      ],
+      "start_col": 1
+    },
+    {
+      "table_kind": "SimpleDecisionTable",
+      "sheet_name": "PointRate",
+      "title": "",
+      "method_signature": "SimpleRules double GetPointRate (String memberType, int purchaseAmount)",
+      "table_name": "GetPointRate",
+      "conditions": [
+        {
+          "name": "会員種別",
+          "col_type": "String",
+          "role": "condition"
+        },
+        {
+          "name": "購入金額",
+          "col_type": "String",
+          "role": "condition"
+        }
+      ],
+      "results": [
+        {
+          "name": "ポイント還元率",
+          "col_type": "String",
+          "role": "result"
+        }
+      ],
+      "rules": [
+        {
+          "id": 1,
+          "conditions": {
+            "会員種別": "非会員",
+            "購入金額": "< 3000"
+          },
+          "results": {
+            "ポイント還元率": 0
+          },
+          "notes": null
+        },
+        {
+          "id": 2,
+          "conditions": {
+            "会員種別": "非会員",
+            "購入金額": "3000 .. 9999"
+          },
+          "results": {
+            "ポイント還元率": 0
+          },
+          "notes": null
+        },
+        {
+          "id": 3,
+          "conditions": {
+            "会員種別": "非会員",
+            "購入金額": ">= 10000"
+          },
+          "results": {
+            "ポイント還元率": 0.01
+          },
+          "notes": null
+        },
+        {
+          "id": 4,
+          "conditions": {
+            "会員種別": "一般会員",
+            "購入金額": "< 3000"
+          },
+          "results": {
+            "ポイント還元率": 0.01
+          },
+          "notes": null
+        },
+        {
+          "id": 5,
+          "conditions": {
+            "会員種別": "一般会員",
+            "購入金額": "3000 .. 9999"
+          },
+          "results": {
+            "ポイント還元率": 0.02
+          },
+          "notes": null
+        },
+        {
+          "id": 6,
+          "conditions": {
+            "会員種別": "一般会員",
+            "購入金額": ">= 10000"
+          },
+          "results": {
+            "ポイント還元率": 0.03
+          },
+          "notes": null
+        },
+        {
+          "id": 7,
+          "conditions": {
+            "会員種別": "プレミアム会員",
+            "購入金額": "< 3000"
+          },
+          "results": {
+            "ポイント還元率": 0.02
+          },
+          "notes": null
+        },
+        {
+          "id": 8,
+          "conditions": {
+            "会員種別": "プレミアム会員",
+            "購入金額": "3000 .. 9999"
+          },
+          "results": {
+            "ポイント還元率": 0.03
+          },
+          "notes": null
+        },
+        {
+          "id": 9,
+          "conditions": {
+            "会員種別": "プレミアム会員",
+            "購入金額": ">= 10000"
+          },
+          "results": {
+            "ポイント還元率": 0.05
+          },
+          "notes": null
+        }
+      ],
+      "start_col": 1
+    }
+  ],
+  "sheet_styles": {
+    "Calculation": {
+      "B2": {
+        "bold": true,
+        "italic": false,
+        "font_name": null,
+        "font_size": null,
+        "font_color": null,
+        "fill_color": null,
+        "number_format": "General",
+        "border_top": null,
+        "border_bottom": null,
+        "border_left": null,
+        "border_right": null
+      },
+      "C2": {
+        "bold": true,
+        "italic": false,
+        "font_name": null,
+        "font_size": null,
+        "font_color": null,
+        "fill_color": null,
+        "number_format": "General",
+        "border_top": null,
+        "border_bottom": null,
+        "border_left": null,
+        "border_right": null
+      },
+      "D2": {
+        "bold": true,
+        "italic": false,
+        "font_name": null,
+        "font_size": null,
+        "font_color": null,
+        "fill_color": null,
+        "number_format": "General",
+        "border_top": null,
+        "border_bottom": null,
+        "border_left": null,
+        "border_right": null
+      },
+      "B4": {
+        "bold": true,
+        "italic": false,
+        "font_name": null,
+        "font_size": null,
+        "font_color": null,
+        "fill_color": null,
+        "number_format": "General",
+        "border_top": "thin",
+        "border_bottom": null,
+        "border_left": null,
+        "border_right": null
+      },
+      "C4": {
+        "bold": true,
+        "italic": false,
+        "font_name": null,
+        "font_size": null,
+        "font_color": null,
+        "fill_color": null,
+        "number_format": "General",
+        "border_top": "thin",
+        "border_bottom": null,
+        "border_left": null,
+        "border_right": null
+      },
+      "D4": {
+        "bold": true,
+        "italic": false,
+        "font_name": null,
+        "font_size": null,
+        "font_color": null,
+        "fill_color": null,
+        "number_format": "General",
+        "border_top": "thin",
+        "border_bottom": null,
+        "border_left": null,
+        "border_right": null
+      }
+    }
+  },
+  "sheet_dimensions": {}
+}

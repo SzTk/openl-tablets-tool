@@ -1,6 +1,6 @@
 # OpenL Tablets JSON スキーマ共有リファレンス
 
-`openl-edit` / `openl-new` 両スキルから参照する共通定義。
+`openl-tablets-edit` / `openl-tablets-create` 両スキルから参照する共通定義。
 
 ## テーブル種別の役割と関係
 

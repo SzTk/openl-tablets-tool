@@ -36,8 +36,8 @@ bash install.sh
 インストールスクリプトは以下を実行します：
 1. `openl` コマンドをグローバルインストール (`uv tool install`)
 2. Claude Code スキルを `~/.claude/skills/` に配置
-   - `openl-edit/` — 既存 Excel の編集スキル
-   - `openl-new/` — 新規作成スキル
+   - `openl-tablets-edit/` — 既存 Excel の編集スキル
+   - `openl-tablets-create/` — 新規作成スキル
    - `openl-lib/` — 両スキルが参照する共有スキーマ定義
 
 ### 手動インストール
@@ -47,9 +47,9 @@ bash install.sh
 uv tool install .
 
 # スキルのみ
-mkdir -p ~/.claude/skills/openl-edit ~/.claude/skills/openl-new ~/.claude/skills/openl-lib
-cp skills/openl-edit/SKILL.md ~/.claude/skills/openl-edit/SKILL.md
-cp skills/openl-new/SKILL.md  ~/.claude/skills/openl-new/SKILL.md
+mkdir -p ~/.claude/skills/openl-tablets-edit ~/.claude/skills/openl-tablets-create ~/.claude/skills/openl-lib
+cp skills/openl-tablets-edit/SKILL.md ~/.claude/skills/openl-tablets-edit/SKILL.md
+cp skills/openl-tablets-create/SKILL.md ~/.claude/skills/openl-tablets-create/SKILL.md
 cp skills/openl-lib/SCHEMA.md ~/.claude/skills/openl-lib/SCHEMA.md
 ```
 
@@ -74,10 +74,10 @@ openl roundtrip MyRules.xlsx
 
 ## Claude Code スキルの使い方
 
-### openl-edit — 既存ファイルの編集
+### openl-tablets-edit — 既存ファイルの編集
 
 ```
-/openl-edit MyRules.xlsx
+/openl-tablets-edit MyRules.xlsx
 ```
 
 スキルが以下を自動で行います：
@@ -88,17 +88,17 @@ openl roundtrip MyRules.xlsx
 5. JSON → Excel 書き戻し
 
 ```
-> /openl-edit MyRules.xlsx
+> /openl-tablets-edit MyRules.xlsx
 (構造が表示される)
 
 > NGO→SIN エコノミー 大人 を 35,000円で追加して
 > 燃油サーチャージ率を10%に変更して
 ```
 
-### openl-new — 新規ファイルの作成
+### openl-tablets-create — 新規ファイルの作成
 
 ```
-/openl-new MyNewRules.json
+/openl-tablets-create MyNewRules.json
 ```
 
 以下の 3 層構造を対話的に設計します：
@@ -128,9 +128,9 @@ openl-tablets-tool/
 │   ├── writer.py       # モデル → Excel ライタ
 │   └── cli.py          # CLI エントリポイント
 ├── skills/
-│   ├── openl-edit/
+│   ├── openl-tablets-edit/
 │   │   └── SKILL.md    # 既存 Excel 編集スキル
-│   ├── openl-new/
+│   ├── openl-tablets-create/
 │   │   └── SKILL.md    # 新規作成スキル
 │   └── openl-lib/
 │       └── SCHEMA.md   # 共有 JSON スキーマ定義

@@ -32,8 +32,8 @@ function Install-Skill {
     Write-Host "      $Name -> $dst\SKILL.md" -ForegroundColor Green
 }
 
-Install-Skill "openl-edit"
-Install-Skill "openl-new"
+Install-Skill "openl-tablets-edit"
+Install-Skill "openl-tablets-create"
 
 # openl-lib（共有スキーマ）をコピー
 $libDst = "$SkillsDst\openl-lib"
@@ -50,5 +50,5 @@ Write-Host "  openl write <file.json>     # JSON -> Excel"
 Write-Host "  openl roundtrip <file.xlsx> # 動作確認"
 Write-Host ""
 Write-Host "Claude Code から:"
-Write-Host "  /openl-edit <file.xlsx>     # 既存 Excel を編集"
-Write-Host "  /openl-new  [output.json]   # 新規作成"
+Write-Host "  /openl-tablets-edit <file.xlsx>      # 既存 Excel を編集"
+Write-Host "  /openl-tablets-create [output.json] # 新規作成"
