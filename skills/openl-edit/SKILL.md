@@ -1,7 +1,8 @@
 ---
 name: openl-edit
 description: OpenL Tablets 形式の Excel ファイルを読み取り、内容を確認・編集して書き戻す。OpenL Tablets の SimpleDecisionTable / DataTable / SpreadsheetTable を含む Excel を編集する場合に使う。
-argument-hint: "<excel_file_path>"
+metadata:
+  argument-hint: "<excel_file_path>"
 allowed-tools: Bash Read Write Edit
 ---
 
