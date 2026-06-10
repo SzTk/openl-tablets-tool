@@ -1,0 +1,61 @@
+apiVersion: 2021-09-01
+location: ${LOCATION}
+name: ${CONTAINER_GROUP}
+properties:
+  osType: Linux
+  ipAddress:
+    type: Public
+    dnsNameLabel: ${DNS_NAME_LABEL}
+    ports:
+      - protocol: tcp
+        port: 8080
+      - protocol: tcp
+        port: 8000
+  imageRegistryCredentials:
+    - server: ${REGISTRY_SERVER}
+      username: ${REGISTRY_USERNAME}
+      password: ${REGISTRY_PASSWORD}
+  containers:
+    - name: openl
+      properties:
+        image: openltablets/ws
+        ports:
+          - port: 8080
+        environmentVariables:
+          # ACI rejects env var names containing dots/hyphens, so the
+          # production-repository.* properties are passed as JVM system
+          # properties via JAVA_OPTS instead (overriding the image default).
+          - name: JAVA_OPTS
+            value: "-Xms32m -XX:MaxRAMPercentage=90.0 -Dproduction-repository.factory=repo-file -Dproduction-repository.uri=/tmp/openl"
+        resources:
+          requests:
+            cpu: 1
+            memoryInGB: 1.5
+        volumeMounts:
+          - name: deployment
+            mountPath: /tmp/openl/deployment
+    - name: deploy-service
+      properties:
+        image: ${DEPLOY_SERVICE_IMAGE}
+        ports:
+          - port: 8000
+        environmentVariables:
+          - name: DEPLOYMENT_PATH
+            value: /deployment
+          - name: OPENL_INTERNAL_URL
+            value: http://localhost:8080
+          - name: OPENL_PUBLIC_URL
+            value: ${OPENL_PUBLIC_URL}
+        resources:
+          requests:
+            cpu: 0.5
+            memoryInGB: 0.5
+        volumeMounts:
+          - name: deployment
+            mountPath: /deployment
+  volumes:
+    - name: deployment
+      azureFile:
+        shareName: ${SHARE_NAME}
+        storageAccountName: ${STORAGE_ACCOUNT}
+        storageAccountKey: ${STORAGE_KEY}

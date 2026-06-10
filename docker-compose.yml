@@ -1,0 +1,26 @@
+services:
+  openl:
+    image: openltablets/ws
+    ports:
+      - "9080:8080"
+    environment:
+      - production-repository.factory=repo-file
+      - production-repository.uri=/tmp/openl
+    volumes:
+      - deployment:/tmp/openl/deployment
+
+  deploy-service:
+    build: ./deploy-service
+    ports:
+      - "8000:8000"
+    volumes:
+      - deployment:/deployment
+    environment:
+      - DEPLOYMENT_PATH=/deployment
+      - OPENL_INTERNAL_URL=http://openl:8080
+      - OPENL_PUBLIC_URL=http://localhost:9080
+    depends_on:
+      - openl
+
+volumes:
+  deployment:

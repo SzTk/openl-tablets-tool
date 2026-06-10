@@ -9,6 +9,9 @@ wheels/
 # Virtual environments
 .venv
 
+# Generated ACI manifest contains secrets (storage key, registry password)
+deploy/azure/container-group.yaml
+
 # 開発・テスト用の一時ファイル
 sample.xlsx
 sample.json
