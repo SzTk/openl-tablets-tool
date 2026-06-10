@@ -49,4 +49,5 @@ export CONTAINER_GROUP=openl-demo       # 任意
 ## エンドポイント
 
 - OpenL Tablets REST API: `http://<container-group>.<location>.azurecontainer.io:8080/<service-name>`
+- OpenL Tablets Swagger UI: `http://<container-group>.<location>.azurecontainer.io:8080/swagger-ui.html?urls.primaryName=<service-name>`
 - Deploy Service: `http://<container-group>.<location>.azurecontainer.io:8000`
