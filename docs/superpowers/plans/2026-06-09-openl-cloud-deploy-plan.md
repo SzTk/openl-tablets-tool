@@ -1212,14 +1212,14 @@ git commit -m "feat: add openl-tablets-deploy skill for Azure E2E deployment"
 This task is manual (requires an Azure subscription and `az login`) and is the final
 acceptance check for the design spec's "エンドツーエンド" goal.
 
-- [ ] **Step 1: Build and push the deploy-service image**
+- [x] **Step 1: Build and push the deploy-service image**
 
 ```bash
 docker build -t <registry>/openl-deploy-service:latest deploy-service
 docker push <registry>/openl-deploy-service:latest
 ```
 
-- [ ] **Step 2: Deploy to Azure**
+- [x] **Step 2: Deploy to Azure**
 
 ```bash
 export DEPLOY_SERVICE_IMAGE=<registry>/openl-deploy-service:latest
@@ -1229,7 +1229,7 @@ export DEPLOY_SERVICE_IMAGE=<registry>/openl-deploy-service:latest
 Note the printed IP address. Update `OPENL_PUBLIC_URL` to `http://<ip>:8080` if it was a
 placeholder, and re-run `deploy.sh` if needed (see `deploy/azure/README.md`).
 
-- [ ] **Step 3: Configure and run the skill**
+- [x] **Step 3: Configure and run the skill**
 
 Create `~/.config/openl-tablets-tool/deploy.env` with `OPENL_DEPLOY_SERVICE_URL=http://<ip>:8000`.
 
@@ -1238,13 +1238,13 @@ In Claude Code, invoke the `openl-tablets-deploy` skill against `ShopPolicy.xlsx
 2. `/deploy` returns `service_name`, `endpoint`, `swagger_url`
 3. The test curl call against `<endpoint>/<MethodName>` returns a valid rule result (not an error)
 
-- [ ] **Step 4: Stop the ACI to avoid ongoing charges**
+- [x] **Step 4: Stop the ACI to avoid ongoing charges**
 
 ```bash
 RESOURCE_GROUP=openl-demo-rg CONTAINER_GROUP=openl-demo ./deploy/azure/stop.sh
 ```
 
-- [ ] **Step 5: Confirm rules persist after restart**
+- [x] **Step 5: Confirm rules persist after restart**
 
 ```bash
 RESOURCE_GROUP=openl-demo-rg CONTAINER_GROUP=openl-demo ./deploy/azure/start.sh
@@ -1252,3 +1252,15 @@ curl http://<ip>:8000/services
 ```
 Expected: previously deployed `service_name` (e.g. `shop-policy`) is still listed, confirming
 Azure Files persistence.
+
+**Result (2026-06-10/11, `japaneast`, container group `openl-demo`,
+DNS label `openl-demo-suzuki`):** All steps passed.
+- `deploy-service` image pushed to ACR and ACI created via `deploy.sh`.
+- `shop-policy` deployed (via deploy-service `/deploy`); `/services` returned
+  `{"services":["shop-policy"]}`.
+- `GET /shop-policy/openapi.json` → 200; `POST /shop-policy/DetermineShopPolicy`
+  with `{"memberType":"GOLD","purchaseAmount":15000,"totalPurchaseAmount":120000}`
+  returned a valid rule result.
+- After `stop.sh` + `start.sh`, `/services` still listed `shop-policy` and the
+  REST endpoint responded correctly, confirming Azure Files persistence.
+- ACI stopped again afterward to avoid ongoing charges.
