@@ -85,8 +85,8 @@ def test_deploy_writes_files_and_returns_endpoint(tmp_path, monkeypatch):
     assert response.status_code == 200
     assert response.json() == {
         "service_name": "shop-policy",
-        "endpoint": "http://localhost:9080/REST/shop-policy",
-        "swagger_url": "http://localhost:9080/REST/shop-policy/api-docs",
+        "endpoint": "http://localhost:9080/shop-policy",
+        "swagger_url": "http://localhost:9080/shop-policy/openapi.json",
     }
 
     deployed = tmp_path / "shop-policy"

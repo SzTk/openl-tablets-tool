@@ -86,11 +86,11 @@ async def deploy(file: UploadFile, service_name: str | None = Form(default=None)
     (target_dir / "rules.xml").write_text(generate_rules_xml(name, excel_filename))
     (target_dir / "rules-deploy.xml").write_text(generate_rules_deploy_xml(name))
 
-    internal_endpoint = f"{get_openl_internal_url()}/REST/{name}"
+    internal_openapi_url = f"{get_openl_internal_url()}/{name}/openapi.json"
     with get_http_client() as http_client:
         ready = wait_for_endpoint(
             http_client,
-            internal_endpoint,
+            internal_openapi_url,
             timeout=get_deploy_timeout(),
             interval=get_deploy_interval(),
         )
@@ -101,9 +101,9 @@ async def deploy(file: UploadFile, service_name: str | None = Form(default=None)
             detail=f"Timed out waiting for OpenL Tablets to deploy '{name}'",
         )
 
-    public_endpoint = f"{get_openl_public_url()}/REST/{name}"
+    public_endpoint = f"{get_openl_public_url()}/{name}"
     return {
         "service_name": name,
         "endpoint": public_endpoint,
-        "swagger_url": f"{public_endpoint}/api-docs",
+        "swagger_url": f"{public_endpoint}/openapi.json",
     }
