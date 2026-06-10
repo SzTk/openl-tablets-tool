@@ -1,16 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Required: build and push the deploy-service image first, e.g.
-#   docker build -t <registry>/openl-deploy-service:latest deploy-service
-#   docker push <registry>/openl-deploy-service:latest
+# Required: build and push the deploy-service image to a registry first, e.g.
+#   az acr login --name <registry-name>
+#   docker tag openl-deploy-service:latest <login-server>/openl-deploy-service:latest
+#   docker push <login-server>/openl-deploy-service:latest
 : "${DEPLOY_SERVICE_IMAGE:?Set DEPLOY_SERVICE_IMAGE to the pushed deploy-service image}"
+
+# Required: credentials for the registry that hosts DEPLOY_SERVICE_IMAGE, e.g.
+#   az acr credential show --name <registry-name>
+: "${REGISTRY_SERVER:?Set REGISTRY_SERVER to the registry login server}"
+: "${REGISTRY_USERNAME:?Set REGISTRY_USERNAME to the registry username}"
+: "${REGISTRY_PASSWORD:?Set REGISTRY_PASSWORD to the registry password}"
 
 RESOURCE_GROUP="${RESOURCE_GROUP:-openl-demo-rg}"
 LOCATION="${LOCATION:-japaneast}"
 STORAGE_ACCOUNT="${STORAGE_ACCOUNT:-openldemostorage}"
 SHARE_NAME="${SHARE_NAME:-openl-deployment}"
 CONTAINER_GROUP="${CONTAINER_GROUP:-openl-demo}"
+DNS_NAME_LABEL="${DNS_NAME_LABEL:-$CONTAINER_GROUP}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -34,14 +42,12 @@ az storage share create \
   --account-key "$STORAGE_KEY" \
   --output none
 
-OPENL_PUBLIC_URL="${OPENL_PUBLIC_URL:-}"
-if [[ -z "$OPENL_PUBLIC_URL" ]]; then
-  # Placeholder; ACI assigns the public IP only after creation. Re-run
-  # start.sh to print the IP, then update the running group if needed.
-  OPENL_PUBLIC_URL="http://PENDING:8080"
-fi
+# dnsNameLabel makes the public URL predictable before creation, avoiding
+# the chicken-and-egg problem of needing the assigned IP up front.
+OPENL_PUBLIC_URL="${OPENL_PUBLIC_URL:-http://${DNS_NAME_LABEL}.${LOCATION}.azurecontainer.io:8080}"
 
-export LOCATION CONTAINER_GROUP DEPLOY_SERVICE_IMAGE OPENL_PUBLIC_URL SHARE_NAME STORAGE_ACCOUNT STORAGE_KEY
+export LOCATION CONTAINER_GROUP DEPLOY_SERVICE_IMAGE DNS_NAME_LABEL OPENL_PUBLIC_URL \
+  REGISTRY_SERVER REGISTRY_USERNAME REGISTRY_PASSWORD SHARE_NAME STORAGE_ACCOUNT STORAGE_KEY
 
 envsubst < "$SCRIPT_DIR/container-group.yaml.template" > "$SCRIPT_DIR/container-group.yaml"
 
@@ -53,4 +59,7 @@ az container create \
 az container show \
   --name "$CONTAINER_GROUP" \
   --resource-group "$RESOURCE_GROUP" \
-  --query "{state:instanceView.state, ip:ipAddress.ip}" -o table
+  --query "{state:instanceView.state, ip:ipAddress.ip, fqdn:ipAddress.fqdn}" -o table
+
+echo "OPENL_PUBLIC_URL=$OPENL_PUBLIC_URL"
+echo "Deploy Service:  http://${DNS_NAME_LABEL}.${LOCATION}.azurecontainer.io:8000"

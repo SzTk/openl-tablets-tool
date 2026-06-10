@@ -9,4 +9,4 @@ az container start --name "$CONTAINER_GROUP" --resource-group "$RESOURCE_GROUP"
 az container show \
   --name "$CONTAINER_GROUP" \
   --resource-group "$RESOURCE_GROUP" \
-  --query "{state:instanceView.state, ip:ipAddress.ip}" -o table
+  --query "{state:instanceView.state, ip:ipAddress.ip, fqdn:ipAddress.fqdn}" -o table

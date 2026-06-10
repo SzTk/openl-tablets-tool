@@ -5,11 +5,16 @@ properties:
   osType: Linux
   ipAddress:
     type: Public
+    dnsNameLabel: ${DNS_NAME_LABEL}
     ports:
       - protocol: tcp
         port: 8080
       - protocol: tcp
         port: 8000
+  imageRegistryCredentials:
+    - server: ${REGISTRY_SERVER}
+      username: ${REGISTRY_USERNAME}
+      password: ${REGISTRY_PASSWORD}
   containers:
     - name: openl
       properties:
