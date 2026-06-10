@@ -1,3 +1,4 @@
+import httpx
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
@@ -62,3 +63,92 @@ def test_sanitize_name_rejects_invalid_names(name):
     with pytest.raises(HTTPException) as exc_info:
         _sanitize_name(name)
     assert exc_info.value.status_code == 400
+
+
+def _ok_handler(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(200)
+
+
+def test_deploy_writes_files_and_returns_endpoint(tmp_path, monkeypatch):
+    monkeypatch.setenv("DEPLOYMENT_PATH", str(tmp_path))
+    monkeypatch.setenv("OPENL_INTERNAL_URL", "http://openl:8080")
+    monkeypatch.setenv("OPENL_PUBLIC_URL", "http://localhost:9080")
+    monkeypatch.setattr(
+        service, "get_http_client", lambda: httpx.Client(transport=httpx.MockTransport(_ok_handler))
+    )
+
+    response = client.post(
+        "/deploy",
+        files={"file": ("ShopPolicy.xlsx", b"fake excel content", "application/octet-stream")},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "service_name": "shop-policy",
+        "endpoint": "http://localhost:9080/REST/shop-policy",
+        "swagger_url": "http://localhost:9080/REST/shop-policy/api-docs",
+    }
+
+    deployed = tmp_path / "shop-policy"
+    assert (deployed / "ShopPolicy.xlsx").read_bytes() == b"fake excel content"
+    assert (deployed / "rules.xml").exists()
+    assert (deployed / "rules-deploy.xml").exists()
+
+
+def test_deploy_with_explicit_service_name(tmp_path, monkeypatch):
+    monkeypatch.setenv("DEPLOYMENT_PATH", str(tmp_path))
+    monkeypatch.setattr(
+        service, "get_http_client", lambda: httpx.Client(transport=httpx.MockTransport(_ok_handler))
+    )
+
+    response = client.post(
+        "/deploy",
+        data={"service_name": "custom-name"},
+        files={"file": ("ShopPolicy.xlsx", b"data", "application/octet-stream")},
+    )
+
+    assert response.json()["service_name"] == "custom-name"
+    assert (tmp_path / "custom-name").exists()
+
+
+def test_deploy_rejects_non_excel_file(tmp_path, monkeypatch):
+    monkeypatch.setenv("DEPLOYMENT_PATH", str(tmp_path))
+
+    response = client.post(
+        "/deploy",
+        files={"file": ("notes.txt", b"data", "text/plain")},
+    )
+
+    assert response.status_code == 400
+
+
+def test_deploy_rejects_invalid_service_name(tmp_path, monkeypatch):
+    monkeypatch.setenv("DEPLOYMENT_PATH", str(tmp_path))
+
+    response = client.post(
+        "/deploy",
+        data={"service_name": "../escape"},
+        files={"file": ("ShopPolicy.xlsx", b"data", "application/octet-stream")},
+    )
+
+    assert response.status_code == 400
+
+
+def test_deploy_times_out_when_openl_never_ready(tmp_path, monkeypatch):
+    monkeypatch.setenv("DEPLOYMENT_PATH", str(tmp_path))
+    monkeypatch.setenv("OPENL_DEPLOY_TIMEOUT", "0.05")
+    monkeypatch.setenv("OPENL_DEPLOY_INTERVAL", "0.01")
+
+    def refused(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("refused", request=request)
+
+    monkeypatch.setattr(
+        service, "get_http_client", lambda: httpx.Client(transport=httpx.MockTransport(refused))
+    )
+
+    response = client.post(
+        "/deploy",
+        files={"file": ("ShopPolicy.xlsx", b"data", "application/octet-stream")},
+    )
+
+    assert response.status_code == 504
