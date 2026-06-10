@@ -22,10 +22,11 @@ properties:
         ports:
           - port: 8080
         environmentVariables:
-          - name: production-repository.factory
-            value: repo-file
-          - name: production-repository.uri
-            value: /tmp/openl
+          # ACI rejects env var names containing dots/hyphens, so the
+          # production-repository.* properties are passed as JVM system
+          # properties via JAVA_OPTS instead (overriding the image default).
+          - name: JAVA_OPTS
+            value: "-Xms32m -XX:MaxRAMPercentage=90.0 -Dproduction-repository.factory=repo-file -Dproduction-repository.uri=/tmp/openl"
         resources:
           requests:
             cpu: 1
