@@ -16,3 +16,12 @@ openl = "openl.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["openl*"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
