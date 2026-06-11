@@ -22,3 +22,10 @@ roundtrip_test.py
 excel_to_json.py
 json_to_excel.py
 main.py
+
+# ルート直下の作業用ファイル（examples/ のサンプルは対象外）
+/ShopPolicy*.json
+/ShopPolicy*.xlsx
+
+# Windows NTFS の Zone.Identifier (ダウンロード元メタデータ)
+*:Zone.Identifier

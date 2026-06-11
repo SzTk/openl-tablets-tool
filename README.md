@@ -134,6 +134,9 @@ openl-tablets-tool/
 │   │   └── SKILL.md    # 新規作成スキル
 │   └── openl-lib/
 │       └── SCHEMA.md   # 共有 JSON スキーマ定義
+├── examples/           # サンプル Excel/JSON
+│   ├── ShopPolicy.xlsx / ShopPolicy.json
+│   └── AutoPolicyCalculation.xlsx / .json  # OpenL Tablets チュートリアル由来 (NOTICE参照)
 ├── install.sh          # インストールスクリプト (Mac/Linux)
 ├── install.ps1         # インストールスクリプト (Windows)
 ├── pyproject.toml      # プロジェクト設定
