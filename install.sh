@@ -31,6 +31,7 @@ install_skill() {
 
 install_skill "openl-tablets-edit"
 install_skill "openl-tablets-create"
+install_skill "openl-tablets-deploy"
 
 # openl-lib（共有スキーマ）をコピー
 mkdir -p "$SKILLS_DST/openl-lib"
@@ -48,3 +49,4 @@ echo ""
 echo "Claude Code から:"
 echo "  /openl-tablets-edit <file.xlsx>        # 既存 Excel を編集"
 echo "  /openl-tablets-create [output.json]   # 新規作成"
+echo "  /openl-tablets-deploy <file.xlsx>     # Azure にデプロイ"

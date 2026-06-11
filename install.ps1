@@ -34,6 +34,7 @@ function Install-Skill {
 
 Install-Skill "openl-tablets-edit"
 Install-Skill "openl-tablets-create"
+Install-Skill "openl-tablets-deploy"
 
 # openl-lib（共有スキーマ）をコピー
 $libDst = "$SkillsDst\openl-lib"
@@ -52,3 +53,4 @@ Write-Host ""
 Write-Host "Claude Code から:"
 Write-Host "  /openl-tablets-edit <file.xlsx>      # 既存 Excel を編集"
 Write-Host "  /openl-tablets-create [output.json] # 新規作成"
+Write-Host "  /openl-tablets-deploy <file.xlsx>    # Azure にデプロイ"
