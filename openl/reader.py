@@ -13,12 +13,14 @@ Excel シートを解析し OpenLWorkbook モデルに変換する。
 """
 
 from __future__ import annotations
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 import openpyxl
 from openpyxl.worksheet.worksheet import Worksheet
 
 from .models import (
+    AnyTable,
     ColumnDef,
     Rule,
     SimpleDecisionTable,
@@ -69,6 +71,28 @@ def _scan_table_headers(rows: list[list[Any]]) -> list[tuple[int, int, str]]:
 
 
 # ---------------------------------------------------------------------------
+# パース結果（Excel 行位置つき）
+# ---------------------------------------------------------------------------
+
+@dataclass
+class ParsedTable:
+    """
+    パース結果 1 テーブル分。行番号はすべて 1-based の Excel 行番号。
+
+      table       : パース済みのテーブルモデル
+      start_row   : テーブル先頭行（シグネチャ/宣言行）
+      header_rows : start_row から続くヘッダー行数（データ行ではない行数）
+      item_rows   : 各データ行 (Rule / DataTableRow / SpreadsheetStep) に対応する Excel 行番号
+      end_row     : テーブルが占める最終行（空行・備考行を含む、次テーブル直前の行）
+    """
+    table: AnyTable
+    start_row: int
+    header_rows: int
+    item_rows: list[int]
+    end_row: int
+
+
+# ---------------------------------------------------------------------------
 # パーサ
 # ---------------------------------------------------------------------------
 
@@ -78,7 +102,7 @@ def _parse_simple_rules(
     start_row: int,
     start_col: int,
     end_row: int,
-) -> SimpleDecisionTable:
+) -> ParsedTable:
     """
     SimpleRules テーブルを解析する。
 
@@ -103,10 +127,11 @@ def _parse_simple_rules(
     ]
 
     if not col_headers:
-        return SimpleDecisionTable(
+        table = SimpleDecisionTable(
             sheet_name=sheet_name, title="", method_signature=method_sig,
             table_name=table_name, conditions=[], results=[], rules=[],
         )
+        return ParsedTable(table=table, start_row=start_row + 1, header_rows=2, item_rows=[], end_row=end_row)
 
     # 最後の列が結果列、それ以外は条件列
     conditions = [
@@ -120,8 +145,9 @@ def _parse_simple_rules(
 
     # データ行
     rules: list[Rule] = []
+    item_rows: list[int] = []
     rule_id = 1
-    for row in rows[start_row + 2:end_row]:
+    for offset, row in enumerate(rows[start_row + 2:end_row]):
         if all(v is None for v in row):
             continue
         vals = [row[idx] if idx < len(row) else None for idx in col_indices]
@@ -132,9 +158,10 @@ def _parse_simple_rules(
             conditions={name: vals[i] for i, name in enumerate(cond_names)},
             results={result_name: vals[-1]},
         ))
+        item_rows.append(start_row + 3 + offset)
         rule_id += 1
 
-    return SimpleDecisionTable(
+    table = SimpleDecisionTable(
         sheet_name=sheet_name,
         title="",
         method_signature=method_sig,
@@ -144,6 +171,7 @@ def _parse_simple_rules(
         rules=rules,
         start_col=start_col,
     )
+    return ParsedTable(table=table, start_row=start_row + 1, header_rows=2, item_rows=item_rows, end_row=end_row)
 
 
 def _parse_spreadsheet(
@@ -152,7 +180,7 @@ def _parse_spreadsheet(
     start_row: int,
     start_col: int,
     end_row: int,
-) -> SpreadsheetTable:
+) -> ParsedTable:
     """
     Spreadsheet テーブルを解析する。
 
@@ -176,7 +204,8 @@ def _parse_spreadsheet(
 
     three_cols = len(col_names) >= 3
     steps: list[SpreadsheetStep] = []
-    for row in rows[start_row + 2:end_row]:
+    item_rows: list[int] = []
+    for offset, row in enumerate(rows[start_row + 2:end_row]):
         if all(v is None for v in row):
             continue
         label = row[start_col] if start_col < len(row) else None
@@ -193,8 +222,9 @@ def _parse_spreadsheet(
             value=val,
             unit=str(desc).strip() if desc is not None else None,
         ))
+        item_rows.append(start_row + 3 + offset)
 
-    return SpreadsheetTable(
+    table = SpreadsheetTable(
         sheet_name=sheet_name,
         title="",
         description=method_sig,
@@ -202,6 +232,7 @@ def _parse_spreadsheet(
         column_names=col_names,
         start_col=start_col,
     )
+    return ParsedTable(table=table, start_row=start_row + 1, header_rows=2, item_rows=item_rows, end_row=end_row)
 
 
 def _parse_datatype(
@@ -210,7 +241,7 @@ def _parse_datatype(
     start_row: int,
     start_col: int,
     end_row: int,
-) -> DataTable:
+) -> ParsedTable:
     """
     Datatype テーブルを解析する。
 
@@ -234,7 +265,8 @@ def _parse_datatype(
         ]
 
     data_rows: list[DataTableRow] = []
-    for row in rows[start_row + 1:end_row]:
+    item_rows: list[int] = []
+    for offset, row in enumerate(rows[start_row + 1:end_row]):
         if all(v is None for v in row):
             continue
         v1 = row[start_col]     if start_col     < len(row) else None
@@ -246,8 +278,9 @@ def _parse_datatype(
             data_rows.append(DataTableRow(data={"value": v1}))
         else:
             data_rows.append(DataTableRow(data={"fieldType": v1, "fieldName": v2, "defaultValue": v3}))
+        item_rows.append(start_row + 2 + offset)
 
-    return DataTable(
+    table = DataTable(
         sheet_name=sheet_name,
         title="",
         table_type=type_name,
@@ -256,6 +289,7 @@ def _parse_datatype(
         rows=data_rows,
         start_col=start_col,
     )
+    return ParsedTable(table=table, start_row=start_row + 1, header_rows=1, item_rows=item_rows, end_row=end_row)
 
 
 _PARSERS = {
@@ -263,6 +297,29 @@ _PARSERS = {
     "Spreadsheet": _parse_spreadsheet,
     "Datatype":    _parse_datatype,
 }
+
+
+# ---------------------------------------------------------------------------
+# シート単位のパース
+# ---------------------------------------------------------------------------
+
+def _parse_sheet(sheet_name: str, ws: Worksheet) -> list[ParsedTable]:
+    rows = _rows_as_lists(ws)
+
+    # 空シートはスキップ
+    if all(all(v is None for v in row) for row in rows):
+        return []
+
+    headers = _scan_table_headers(rows)
+    if not headers:
+        return []  # OpenL テーブルが見つからないシートはスキップ
+
+    parsed: list[ParsedTable] = []
+    for i, (row_idx, col_idx, keyword) in enumerate(headers):
+        end_row = headers[i + 1][0] if i + 1 < len(headers) else len(rows)
+        parser = _PARSERS[keyword]
+        parsed.append(parser(sheet_name, rows, row_idx, col_idx, end_row))
+    return parsed
 
 
 # ---------------------------------------------------------------------------
@@ -276,21 +333,20 @@ class OpenLReader:
 
         for sheet_name in wb.sheetnames:
             ws = wb[sheet_name]
-            rows = _rows_as_lists(ws)
-
-            # 空シートはスキップ
-            if all(all(v is None for v in row) for row in rows):
-                continue
-
-            headers = _scan_table_headers(rows)
-
-            if not headers:
-                continue  # OpenL テーブルが見つからないシートはスキップ
-
-            for i, (row_idx, col_idx, keyword) in enumerate(headers):
-                end_row = headers[i + 1][0] if i + 1 < len(headers) else len(rows)
-                parser = _PARSERS[keyword]
-                table = parser(sheet_name, rows, row_idx, col_idx, end_row)
-                workbook.tables.append(table)
+            for parsed in _parse_sheet(sheet_name, ws):
+                workbook.tables.append(parsed.table)
 
         return workbook
+
+
+def read_with_positions(path: str | Path) -> list[ParsedTable]:
+    """
+    元ファイルを再パースし、各テーブルを Excel 行位置情報つきで返す。
+    patch_writer (将来実装) が編集前後の行を突き合わせるために使用する。
+    """
+    wb = openpyxl.load_workbook(str(path), data_only=True)
+    parsed_tables: list[ParsedTable] = []
+    for sheet_name in wb.sheetnames:
+        ws = wb[sheet_name]
+        parsed_tables.extend(_parse_sheet(sheet_name, ws))
+    return parsed_tables
