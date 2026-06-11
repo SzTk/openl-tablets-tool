@@ -19,10 +19,6 @@ import openpyxl
 from openpyxl.worksheet.worksheet import Worksheet
 
 from .models import (
-    CellStyle,
-    SheetDimensions,
-    _DEFAULT_FONT_NAME,
-    _DEFAULT_FONT_SIZE,
     ColumnDef,
     Rule,
     SimpleDecisionTable,
@@ -270,73 +266,6 @@ _PARSERS = {
 
 
 # ---------------------------------------------------------------------------
-# スタイル・サイズ読み取り
-# ---------------------------------------------------------------------------
-
-_DEFAULT_FONT_COLORS = {"FF000000", "00000000", ""}
-_DEFAULT_FILL_COLORS = {"00000000", "FFFFFFFF", ""}
-
-
-def _border_style(side) -> str | None:
-    return side.style if side and side.style else None
-
-
-def _read_sheet_styles(ws: Worksheet) -> dict[str, CellStyle]:
-    styles: dict[str, CellStyle] = {}
-    for row in ws.iter_rows():
-        for cell in row:
-            font = cell.font
-            fill = cell.fill
-            border = cell.border
-            nf = cell.number_format or "General"
-
-            font_name: str | None = None
-            if font.name and font.name != _DEFAULT_FONT_NAME:
-                font_name = font.name
-
-            font_size: float | None = None
-            if font.size and font.size != _DEFAULT_FONT_SIZE:
-                font_size = float(font.size)
-
-            font_color: str | None = None
-            if font.color and font.color.type == "rgb":
-                rgb = font.color.rgb
-                if rgb not in _DEFAULT_FONT_COLORS:
-                    font_color = rgb
-
-            fill_color: str | None = None
-            if fill.fill_type == "solid" and fill.fgColor.type == "rgb":
-                rgb = fill.fgColor.rgb
-                if rgb not in _DEFAULT_FILL_COLORS:
-                    fill_color = rgb
-
-            style = CellStyle(
-                bold=bool(font.bold),
-                italic=bool(font.italic),
-                font_name=font_name,
-                font_size=font_size,
-                font_color=font_color,
-                fill_color=fill_color,
-                number_format=nf,
-                border_top=_border_style(border.top),
-                border_bottom=_border_style(border.bottom),
-                border_left=_border_style(border.left),
-                border_right=_border_style(border.right),
-            )
-            if not style.is_default():
-                styles[cell.coordinate] = style
-    return styles
-
-
-def _read_sheet_dimensions(ws: Worksheet) -> SheetDimensions | None:
-    col_widths = {ltr: dim.width for ltr, dim in ws.column_dimensions.items() if dim.width}
-    row_heights = {str(n): dim.height for n, dim in ws.row_dimensions.items() if dim.height}
-    if not col_widths and not row_heights:
-        return None
-    return SheetDimensions(column_widths=col_widths, row_heights=row_heights)
-
-
-# ---------------------------------------------------------------------------
 # メインリーダ
 # ---------------------------------------------------------------------------
 
@@ -363,13 +292,5 @@ class OpenLReader:
                 parser = _PARSERS[keyword]
                 table = parser(sheet_name, rows, row_idx, col_idx, end_row)
                 workbook.tables.append(table)
-
-            sheet_style = _read_sheet_styles(ws)
-            if sheet_style:
-                workbook.sheet_styles[sheet_name] = sheet_style
-
-            dims = _read_sheet_dimensions(ws)
-            if dims:
-                workbook.sheet_dimensions[sheet_name] = dims
 
         return workbook
