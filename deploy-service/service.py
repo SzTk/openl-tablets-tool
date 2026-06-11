@@ -1,6 +1,7 @@
 import os
 import shutil
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import httpx
 from fastapi import FastAPI, Form, HTTPException, UploadFile
@@ -87,10 +88,16 @@ async def deploy(file: UploadFile, service_name: str | None = Form(default=None)
     (target_dir / "rules-deploy.xml").write_text(generate_rules_deploy_xml(name))
 
     internal_openapi_url = f"{get_openl_internal_url()}/{name}/openapi.json"
+    # OpenL caches the generated OpenAPI doc (incl. its "servers" entry) on the
+    # first request, derived from that request's Host header. Spoof the Host
+    # header here to the public URL so the cached "servers" entry - and thus
+    # Swagger UI's "Try it out" - points at the public endpoint, not this
+    # internal readiness check's address.
     with get_http_client() as http_client:
         ready = wait_for_endpoint(
             http_client,
             internal_openapi_url,
+            headers={"Host": urlsplit(get_openl_public_url()).netloc},
             timeout=get_deploy_timeout(),
             interval=get_deploy_interval(),
         )

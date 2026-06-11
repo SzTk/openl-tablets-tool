@@ -34,3 +34,25 @@ def test_wait_for_endpoint_retries_until_ready():
 
     assert wait_for_endpoint(client, "http://openl/REST/shop-policy", timeout=1, interval=0.01) is True
     assert calls["count"] == 3
+
+
+def test_wait_for_endpoint_passes_headers_to_request():
+    received = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        received["host"] = request.headers.get("host")
+        return httpx.Response(200)
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+
+    assert (
+        wait_for_endpoint(
+            client,
+            "http://openl/REST/shop-policy",
+            headers={"Host": "example.com:8080"},
+            timeout=1,
+            interval=0.01,
+        )
+        is True
+    )
+    assert received["host"] == "example.com:8080"

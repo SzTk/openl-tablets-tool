@@ -95,6 +95,30 @@ def test_deploy_writes_files_and_returns_endpoint(tmp_path, monkeypatch):
     assert (deployed / "rules-deploy.xml").exists()
 
 
+def test_deploy_sets_host_header_for_internal_readiness_check(tmp_path, monkeypatch):
+    monkeypatch.setenv("DEPLOYMENT_PATH", str(tmp_path))
+    monkeypatch.setenv("OPENL_INTERNAL_URL", "http://localhost:8080")
+    monkeypatch.setenv("OPENL_PUBLIC_URL", "http://openl-demo-suzuki.japaneast.azurecontainer.io:8080")
+
+    received = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        received["host"] = request.headers.get("host")
+        return httpx.Response(200)
+
+    monkeypatch.setattr(
+        service, "get_http_client", lambda: httpx.Client(transport=httpx.MockTransport(handler))
+    )
+
+    response = client.post(
+        "/deploy",
+        files={"file": ("ShopPolicy.xlsx", b"fake excel content", "application/octet-stream")},
+    )
+
+    assert response.status_code == 200
+    assert received["host"] == "openl-demo-suzuki.japaneast.azurecontainer.io:8080"
+
+
 def test_deploy_with_explicit_service_name(tmp_path, monkeypatch):
     monkeypatch.setenv("DEPLOYMENT_PATH", str(tmp_path))
     monkeypatch.setattr(
