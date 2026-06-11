@@ -95,9 +95,7 @@ SpreadsheetTable          ← API エントリポイント。出力項目を ste
       "start_col": 1
     }
 
-  ],
-  "sheet_styles": {},      // セル書式 - 通常編集不要
-  "sheet_dimensions": {}   // 列幅・行高 - 通常編集不要
+  ]
 }
 ```
 
@@ -124,4 +122,3 @@ SimpleRules <ReturnType> <MethodName> (<Type1> <param1>, <Type2> <param2>)
 
 - `id` は 1 始まりの連番、途中を欠番にしない
 - `start_col` は通常 1（SpreadsheetTable は 2）
-- `sheet_styles` / `sheet_dimensions` はルール編集時は変更しない

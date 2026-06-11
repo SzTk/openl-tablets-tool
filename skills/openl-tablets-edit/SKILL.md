@@ -108,5 +108,4 @@ JSON 構造・型記法・制約の詳細は `skills/openl-lib/SCHEMA.md` を Re
 
 ## 注意事項
 
-- `sheet_styles` と `sheet_dimensions` はルール編集時は変更しない
 - String 型の条件値は OpenL 記法に従い `"\"値\""` 形式でラップする
