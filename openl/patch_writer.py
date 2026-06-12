@@ -193,6 +193,24 @@ def _append_table(ws: Worksheet, table: AnyTable, *, separator: bool) -> None:
         _WRITER_MAP[table.table_kind](ws, table)
 
 
+def _recreate_table(ws: Worksheet, before: ParsedTable, after: AnyTable) -> None:
+    """列構成が変わったテーブルを削除して同じ位置に再作成する。
+
+    このテーブルのみ書式が openpyxl デフォルトに戻る（他のテーブル・セルは無影響）。
+    """
+    n_before = before.end_row - before.start_row + 1
+    ws.delete_rows(before.start_row, n_before)
+
+    tmp_ws = openpyxl.Workbook().active
+    _WRITER_MAP[after.table_kind](tmp_ws, after)
+    n_after = tmp_ws.max_row
+
+    ws.insert_rows(before.start_row, n_after)
+    for r in range(1, n_after + 1):
+        for c in range(1, tmp_ws.max_column + 1):
+            _set_cell(ws, before.start_row + r - 1, c, tmp_ws.cell(row=r, column=c).value)
+
+
 def patch_write(edited: OpenLWorkbook, original_path: str | Path, out_path: str | Path) -> None:
     """編集後の edited を、original_path の書式・レイアウトを保ったまま out_path に書き出す。"""
     wb = openpyxl.load_workbook(str(original_path))
@@ -223,6 +241,8 @@ def patch_write(edited: OpenLWorkbook, original_path: str | Path, out_path: str 
             after = after_by_id.get(ident)
             if after is None:
                 _delete_table(ws, parsed)
+            elif _structure_key(parsed.table) != _structure_key(after):
+                _recreate_table(ws, parsed, after)
             else:
                 _patch_table_rows(ws, parsed, after)
 

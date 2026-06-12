@@ -379,6 +379,42 @@ def test_patch_write_append_spreadsheet_table_applies_header_styling(tmp_path):
         assert ws.cell(3, col).border.top.style == "thin"
 
 
+def test_patch_write_condition_column_added_recreates_table(tmp_path):
+    from openl.patch_writer import patch_write
+
+    edited = OpenLReader().read(SHOP_POLICY)
+    table = edited.get_table("FreeShipping")
+    table.conditions.append(ColumnDef(name="新条件", col_type="String", role="condition"))
+    for rule in table.rules:
+        rule.conditions["新条件"] = "test"
+
+    out_path = tmp_path / "out.xlsx"
+    patch_write(edited, SHOP_POLICY, out_path)
+
+    wb = openpyxl.load_workbook(out_path)
+    ws = wb["FreeShipping"]
+
+    # 行数は変わらない（9ルール + シグネチャ行 + ヘッダー行 = 11行）
+    assert ws.max_row == 11
+    assert [ws.cell(2, c).value for c in (2, 3, 4, 5)] == ["会員種別", "購入金額", "新条件", "送料無料"]
+    assert ws.cell(3, 4).value == "test"
+    assert ws.cell(11, 4).value == "test"
+
+    # 再パースすると新しい列構成で読み取れる
+    result = OpenLReader().read(out_path)
+    fs = result.get_table("FreeShipping")
+    assert [c.name for c in fs.conditions] == ["会員種別", "購入金額", "新条件"]
+    assert len(fs.rules) == 9
+    assert fs.rules[0].conditions["新条件"] == "test"
+
+    # 他のシートは完全に不変
+    before_wb = openpyxl.load_workbook(SHOP_POLICY)
+    before = _all_cell_values(before_wb)
+    after = _all_cell_values(wb)
+    for sheet in ("PointRate", "CampaignTarget", "Calculation"):
+        assert after[sheet] == before[sheet]
+
+
 def test_patch_write_append_two_new_tables_to_new_sheet_inserts_separator(tmp_path):
     from openl.patch_writer import patch_write
 
