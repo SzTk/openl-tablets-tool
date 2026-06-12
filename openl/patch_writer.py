@@ -92,3 +92,95 @@ def _set_cell(ws: Worksheet, row: int, col: int, value: Any) -> None:
         cell.data_type = "s"
     else:
         cell.value = value
+
+
+def _copy_row_style(ws: Worksheet, template_row: int, target_row: int, columns: range) -> None:
+    """target_row の各セルに template_row のスタイルをコピーする。"""
+    for col in columns:
+        src = ws.cell(row=template_row, column=col)
+        dst = ws.cell(row=target_row, column=col)
+        dst.font = copy(src.font)
+        dst.fill = copy(src.fill)
+        dst.border = copy(src.border)
+        dst.alignment = copy(src.alignment)
+        dst.number_format = src.number_format
+
+
+def _insert_table_rows(
+    ws: Worksheet, after: AnyTable, j1: int, j2: int, anchor_row: int, start_col: int,
+) -> None:
+    """anchor_row の直後に after の item j1..j2 を挿入し、anchor_row のスタイルをコピーする。"""
+    count = j2 - j1
+    insert_at = anchor_row + 1
+    ws.insert_rows(insert_at, count)
+    n_cols = len(_row_cell_values(after, j1))
+    columns = range(start_col, start_col + n_cols)
+    for offset in range(count):
+        row_num = insert_at + offset
+        _copy_row_style(ws, anchor_row, row_num, columns)
+        for col, val in zip(columns, _row_cell_values(after, j1 + offset)):
+            _set_cell(ws, row_num, col, val)
+
+
+def _patch_table_rows(ws: Worksheet, before: ParsedTable, after: AnyTable) -> None:
+    """before/after の比較タプルを SequenceMatcher で diff し、行単位でパッチを適用する。
+
+    行番号がずれないよう、opcode はシート内で行番号の大きい方から処理する
+    （SequenceMatcher.get_opcodes() の逆順）。item_rows はテーブル内で
+    連続した行番号であることを前提とする。
+    """
+    before_tuples = _comparison_tuples(before.table)
+    after_tuples = _comparison_tuples(after)
+    matcher = SequenceMatcher(a=before_tuples, b=after_tuples, autojunk=False)
+    start_col = after.start_col + 1  # 1-based
+
+    for tag, i1, i2, j1, j2 in reversed(matcher.get_opcodes()):
+        if tag == "equal":
+            continue
+
+        if tag == "replace":
+            common = min(i2 - i1, j2 - j1)
+            for k in range(common):
+                row_num = before.item_rows[i1 + k]
+                for col, val in zip(
+                    range(start_col, start_col + len(_row_cell_values(after, j1 + k))),
+                    _row_cell_values(after, j1 + k),
+                ):
+                    _set_cell(ws, row_num, col, val)
+            if i2 - i1 > common:
+                rows = before.item_rows[i1 + common:i2]
+                ws.delete_rows(rows[0], len(rows))
+            elif j2 - j1 > common:
+                anchor = before.item_rows[i1 + common - 1]
+                _insert_table_rows(ws, after, j1 + common, j2, anchor, start_col)
+
+        elif tag == "delete":
+            rows = before.item_rows[i1:i2]
+            ws.delete_rows(rows[0], len(rows))
+
+        elif tag == "insert":
+            if i1 > 0:
+                anchor = before.item_rows[i1 - 1]
+            elif before.item_rows:
+                anchor = before.item_rows[0] - 1
+            else:
+                anchor = before.start_row + before.header_rows - 1
+            _insert_table_rows(ws, after, j1, j2, anchor, start_col)
+
+
+def patch_write(edited: OpenLWorkbook, original_path: str | Path, out_path: str | Path) -> None:
+    """編集後の edited を、original_path の書式・レイアウトを保ったまま out_path に書き出す。"""
+    wb = openpyxl.load_workbook(str(original_path))
+    before_parsed = read_with_positions(original_path)
+
+    before_by_id = {_table_identity(p.table): p for p in before_parsed}
+    after_by_id = {_table_identity(t): t for t in edited.tables}
+
+    for ident, parsed in before_by_id.items():
+        after = after_by_id.get(ident)
+        if after is None:
+            continue
+        ws = wb[ident[0]]
+        _patch_table_rows(ws, parsed, after)
+
+    wb.save(str(out_path))

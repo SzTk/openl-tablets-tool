@@ -82,3 +82,39 @@ def test_set_cell_writes_plain_value():
     ws = wb.active
     _set_cell(ws, 1, 1, 123)
     assert ws.cell(row=1, column=1).value == 123
+
+
+def _all_cell_values(wb):
+    """openpyxl Workbook の全シート・全セル値を {sheet_name: [[...], ...]} で返す。"""
+    return {
+        name: [[c.value for c in row] for row in wb[name].iter_rows()]
+        for name in wb.sheetnames
+    }
+
+
+def test_patch_write_value_change_preserves_everything_else(tmp_path):
+    from openl.patch_writer import patch_write
+
+    edited = OpenLReader().read(SHOP_POLICY)
+    table = edited.get_table("FreeShipping")
+    table.rules[0].results["送料無料"] = True  # was False
+
+    out_path = tmp_path / "out.xlsx"
+    patch_write(edited, SHOP_POLICY, out_path)
+
+    before_wb = openpyxl.load_workbook(SHOP_POLICY)
+    after_wb = openpyxl.load_workbook(out_path)
+
+    before = _all_cell_values(before_wb)
+    after = _all_cell_values(after_wb)
+
+    # 変更したセル（FreeShipping シート 3行目 D列 = 結果列）
+    assert before["FreeShipping"][2][3] is False
+    assert after["FreeShipping"][2][3] is True
+
+    # 同じ行の他のセルは不変
+    assert after["FreeShipping"][2][1:3] == before["FreeShipping"][2][1:3]
+
+    # 変更したセル以外はすべて一致
+    after["FreeShipping"][2][3] = before["FreeShipping"][2][3]
+    assert after == before
