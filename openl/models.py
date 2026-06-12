@@ -13,56 +13,6 @@ from pydantic import BaseModel, Field
 
 
 # ---------------------------------------------------------------------------
-# セル書式モデル
-# ---------------------------------------------------------------------------
-
-_DEFAULT_FONT_NAME = "Calibri"
-_DEFAULT_FONT_SIZE = 11.0
-
-
-class CellStyle(BaseModel):
-    """
-    1 セル分の書式情報。
-    color 値はすべて ARGB 8桁 hex 文字列 (例: "FF1F3864")。
-    border_* はスタイル文字列 ("thin", "medium", "thick" など)。None = 罫線なし。
-    font_name / font_size が None のときはワークブックデフォルト (Calibri / 11pt) として扱う。
-    """
-    bold: bool = False
-    italic: bool = False
-    font_name: str | None = None      # None = Calibri (デフォルト)
-    font_size: float | None = None    # None = 11.0pt (デフォルト)
-    font_color: str | None = None     # ARGB hex。None = 黒
-    fill_color: str | None = None     # ARGB hex。None = 塗りなし
-    number_format: str = "General"
-    border_top: str | None = None
-    border_bottom: str | None = None
-    border_left: str | None = None
-    border_right: str | None = None
-
-    def is_default(self) -> bool:
-        """すべてデフォルト値なら True（保存不要と判定する用途）。"""
-        return (
-            not self.bold
-            and not self.italic
-            and self.font_name is None
-            and self.font_size is None
-            and self.font_color is None
-            and self.fill_color is None
-            and self.number_format == "General"
-            and self.border_top is None
-            and self.border_bottom is None
-            and self.border_left is None
-            and self.border_right is None
-        )
-
-
-class SheetDimensions(BaseModel):
-    """シートの列幅・行高設定。"""
-    column_widths: dict[str, float] = Field(default_factory=dict)  # 列文字 → 幅
-    row_heights: dict[str, float] = Field(default_factory=dict)    # 行番号(str) → 高さ
-
-
-# ---------------------------------------------------------------------------
 # 共通パーツ
 # ---------------------------------------------------------------------------
 
@@ -171,10 +121,6 @@ class OpenLWorkbook(BaseModel):
     """Excel ファイル全体を表すルートモデル。"""
     source_file: str
     tables: list[AnyTable] = Field(default_factory=list)
-    # シート名 → {セル番地 → CellStyle}。デフォルト書式のセルは含まない。
-    sheet_styles: dict[str, dict[str, CellStyle]] = Field(default_factory=dict)
-    # シート名 → 列幅・行高
-    sheet_dimensions: dict[str, SheetDimensions] = Field(default_factory=dict)
 
     def get_table(self, sheet_name: str) -> AnyTable | None:
         return next((t for t in self.tables if t.sheet_name == sheet_name), None)

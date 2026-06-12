@@ -8,11 +8,28 @@
       "description": "Spreadsheet SpreadsheetResult DetermineShopPolicy (String memberType, int purchaseAmount, int totalPurchaseAmount)",
       "parameters": [],
       "steps": [
-        { "label": "FreeShipping",     "value": "= IsFreeShipping(memberType, purchaseAmount)",              "unit": "送料無料フラグ" },
-        { "label": "PointRate",        "value": "= GetPointRate(memberType, purchaseAmount)",                "unit": "ポイント還元率" },
-        { "label": "CampaignTarget",   "value": "= IsCampaignTarget(memberType, totalPurchaseAmount)",      "unit": "キャンペーン対象" }
+        {
+          "label": "FreeShipping",
+          "value": "= IsFreeShipping(memberType, purchaseAmount)",
+          "unit": "送料無料フラグ"
+        },
+        {
+          "label": "PointRate",
+          "value": "= GetPointRate(memberType, purchaseAmount)",
+          "unit": "ポイント還元率"
+        },
+        {
+          "label": "CampaignTarget",
+          "value": "= IsCampaignTarget(memberType, totalPurchaseAmount)",
+          "unit": "キャンペーン対象"
+        }
       ],
-      "start_col": 2,
+      "column_names": [
+        "Step",
+        "Description",
+        "Value"
+      ],
+      "start_col": 1,
       "notes": []
     },
     {
@@ -22,22 +39,124 @@
       "method_signature": "SimpleRules Boolean IsFreeShipping (String memberType, int purchaseAmount)",
       "table_name": "IsFreeShipping",
       "conditions": [
-        { "name": "会員種別", "col_type": "String", "role": "condition" },
-        { "name": "購入金額", "col_type": "int",    "role": "condition" }
+        {
+          "name": "会員種別",
+          "col_type": "String",
+          "role": "condition"
+        },
+        {
+          "name": "購入金額",
+          "col_type": "String",
+          "role": "condition"
+        }
       ],
       "results": [
-        { "name": "送料無料", "col_type": "Boolean", "role": "result" }
+        {
+          "name": "送料無料",
+          "col_type": "String",
+          "role": "result"
+        }
       ],
       "rules": [
-        { "id": 1, "conditions": { "会員種別": "非会員",       "購入金額": "< 3000"              }, "results": { "送料無料": false }, "notes": null },
-        { "id": 2, "conditions": { "会員種別": "非会員",       "購入金額": "3000 .. 9999"  }, "results": { "送料無料": false }, "notes": null },
-        { "id": 3, "conditions": { "会員種別": "非会員",       "購入金額": ">= 10000"            }, "results": { "送料無料": true  }, "notes": null },
-        { "id": 4, "conditions": { "会員種別": "一般会員",     "購入金額": "< 3000"              }, "results": { "送料無料": false }, "notes": null },
-        { "id": 5, "conditions": { "会員種別": "一般会員",     "購入金額": "3000 .. 9999"  }, "results": { "送料無料": true  }, "notes": null },
-        { "id": 6, "conditions": { "会員種別": "一般会員",     "購入金額": ">= 10000"            }, "results": { "送料無料": true  }, "notes": null },
-        { "id": 7, "conditions": { "会員種別": "プレミアム会員", "購入金額": "< 3000"             }, "results": { "送料無料": true  }, "notes": null },
-        { "id": 8, "conditions": { "会員種別": "プレミアム会員", "購入金額": "3000 .. 9999" }, "results": { "送料無料": true  }, "notes": null },
-        { "id": 9, "conditions": { "会員種別": "プレミアム会員", "購入金額": ">= 10000"           }, "results": { "送料無料": true  }, "notes": null }
+        {
+          "id": 1,
+          "conditions": {
+            "会員種別": "非会員",
+            "購入金額": "< 3000"
+          },
+          "results": {
+            "送料無料": false
+          },
+          "notes": null
+        },
+        {
+          "id": 2,
+          "conditions": {
+            "会員種別": "非会員",
+            "購入金額": "3000 .. 9999"
+          },
+          "results": {
+            "送料無料": false
+          },
+          "notes": null
+        },
+        {
+          "id": 3,
+          "conditions": {
+            "会員種別": "非会員",
+            "購入金額": ">= 10000"
+          },
+          "results": {
+            "送料無料": true
+          },
+          "notes": null
+        },
+        {
+          "id": 4,
+          "conditions": {
+            "会員種別": "一般会員",
+            "購入金額": "< 3000"
+          },
+          "results": {
+            "送料無料": false
+          },
+          "notes": null
+        },
+        {
+          "id": 5,
+          "conditions": {
+            "会員種別": "一般会員",
+            "購入金額": "3000 .. 9999"
+          },
+          "results": {
+            "送料無料": true
+          },
+          "notes": null
+        },
+        {
+          "id": 6,
+          "conditions": {
+            "会員種別": "一般会員",
+            "購入金額": ">= 10000"
+          },
+          "results": {
+            "送料無料": true
+          },
+          "notes": null
+        },
+        {
+          "id": 7,
+          "conditions": {
+            "会員種別": "プレミアム会員",
+            "購入金額": "< 3000"
+          },
+          "results": {
+            "送料無料": true
+          },
+          "notes": null
+        },
+        {
+          "id": 8,
+          "conditions": {
+            "会員種別": "プレミアム会員",
+            "購入金額": "3000 .. 9999"
+          },
+          "results": {
+            "送料無料": true
+          },
+          "notes": null
+        },
+        {
+          "id": 9,
+          "conditions": {
+            "会員種別": "プレミアム会員",
+            "購入金額": ">= 10000"
+          },
+          "results": {
+            "送料無料": true
+          },
+          "notes": null
+        }
       ],
       "start_col": 1
     },
@@ -48,22 +167,124 @@
       "method_signature": "SimpleRules double GetPointRate (String memberType, int purchaseAmount)",
       "table_name": "GetPointRate",
       "conditions": [
-        { "name": "会員種別", "col_type": "String", "role": "condition" },
-        { "name": "購入金額", "col_type": "int",    "role": "condition" }
+        {
+          "name": "会員種別",
+          "col_type": "String",
+          "role": "condition"
+        },
+        {
+          "name": "購入金額",
+          "col_type": "String",
+          "role": "condition"
+        }
       ],
       "results": [
-        { "name": "還元率", "col_type": "double", "role": "result" }
+        {
+          "name": "還元率",
+          "col_type": "String",
+          "role": "result"
+        }
       ],
       "rules": [
-        { "id": 1, "conditions": { "会員種別": "非会員",       "購入金額": "< 3000"              }, "results": { "還元率": 0.0  }, "notes": null },
-        { "id": 2, "conditions": { "会員種別": "非会員",       "購入金額": "3000 .. 9999"  }, "results": { "還元率": 0.0  }, "notes": null },
-        { "id": 3, "conditions": { "会員種別": "非会員",       "購入金額": ">= 10000"            }, "results": { "還元率": 0.0  }, "notes": null },
-        { "id": 4, "conditions": { "会員種別": "一般会員",     "購入金額": "< 3000"              }, "results": { "還元率": 0.01 }, "notes": null },
-        { "id": 5, "conditions": { "会員種別": "一般会員",     "購入金額": "3000 .. 9999"  }, "results": { "還元率": 0.02 }, "notes": null },
-        { "id": 6, "conditions": { "会員種別": "一般会員",     "購入金額": ">= 10000"            }, "results": { "還元率": 0.03 }, "notes": null },
-        { "id": 7, "conditions": { "会員種別": "プレミアム会員", "購入金額": "< 3000"             }, "results": { "還元率": 0.03 }, "notes": null },
-        { "id": 8, "conditions": { "会員種別": "プレミアム会員", "購入金額": "3000 .. 9999" }, "results": { "還元率": 0.05 }, "notes": null },
-        { "id": 9, "conditions": { "会員種別": "プレミアム会員", "購入金額": ">= 10000"           }, "results": { "還元率": 0.05 }, "notes": null }
+        {
+          "id": 1,
+          "conditions": {
+            "会員種別": "非会員",
+            "購入金額": "< 3000"
+          },
+          "results": {
+            "還元率": 0
+          },
+          "notes": null
+        },
+        {
+          "id": 2,
+          "conditions": {
+            "会員種別": "非会員",
+            "購入金額": "3000 .. 9999"
+          },
+          "results": {
+            "還元率": 0
+          },
+          "notes": null
+        },
+        {
+          "id": 3,
+          "conditions": {
+            "会員種別": "非会員",
+            "購入金額": ">= 10000"
+          },
+          "results": {
+            "還元率": 0
+          },
+          "notes": null
+        },
+        {
+          "id": 4,
+          "conditions": {
+            "会員種別": "一般会員",
+            "購入金額": "< 3000"
+          },
+          "results": {
+            "還元率": 0.01
+          },
+          "notes": null
+        },
+        {
+          "id": 5,
+          "conditions": {
+            "会員種別": "一般会員",
+            "購入金額": "3000 .. 9999"
+          },
+          "results": {
+            "還元率": 0.02
+          },
+          "notes": null
+        },
+        {
+          "id": 6,
+          "conditions": {
+            "会員種別": "一般会員",
+            "購入金額": ">= 10000"
+          },
+          "results": {
+            "還元率": 0.03
+          },
+          "notes": null
+        },
+        {
+          "id": 7,
+          "conditions": {
+            "会員種別": "プレミアム会員",
+            "購入金額": "< 3000"
+          },
+          "results": {
+            "還元率": 0.03
+          },
+          "notes": null
+        },
+        {
+          "id": 8,
+          "conditions": {
+            "会員種別": "プレミアム会員",
+            "購入金額": "3000 .. 9999"
+          },
+          "results": {
+            "還元率": 0.05
+          },
+          "notes": null
+        },
+        {
+          "id": 9,
+          "conditions": {
+            "会員種別": "プレミアム会員",
+            "購入金額": ">= 10000"
+          },
+          "results": {
+            "還元率": 0.05
+          },
+          "notes": null
+        }
       ],
       "start_col": 1
     },
@@ -74,26 +295,126 @@
       "method_signature": "SimpleRules Boolean IsCampaignTarget (String memberType, int totalPurchaseAmount)",
       "table_name": "IsCampaignTarget",
       "conditions": [
-        { "name": "会員種別",     "col_type": "String", "role": "condition" },
-        { "name": "累積購入金額", "col_type": "int",    "role": "condition" }
+        {
+          "name": "会員種別",
+          "col_type": "String",
+          "role": "condition"
+        },
+        {
+          "name": "累積購入金額",
+          "col_type": "String",
+          "role": "condition"
+        }
       ],
       "results": [
-        { "name": "キャンペーン対象", "col_type": "Boolean", "role": "result" }
+        {
+          "name": "キャンペーン対象",
+          "col_type": "String",
+          "role": "result"
+        }
       ],
       "rules": [
-        { "id": 1, "conditions": { "会員種別": "非会員",         "累積購入金額": "< 10000"        }, "results": { "キャンペーン対象": false }, "notes": null },
-        { "id": 2, "conditions": { "会員種別": "非会員",         "累積購入金額": "10000 .. 49999" }, "results": { "キャンペーン対象": false }, "notes": null },
-        { "id": 3, "conditions": { "会員種別": "非会員",         "累積購入金額": ">= 50000"       }, "results": { "キャンペーン対象": false }, "notes": null },
-        { "id": 4, "conditions": { "会員種別": "一般会員",       "累積購入金額": "< 10000"        }, "results": { "キャンペーン対象": false }, "notes": null },
-        { "id": 5, "conditions": { "会員種別": "一般会員",       "累積購入金額": "10000 .. 49999" }, "results": { "キャンペーン対象": false }, "notes": null },
-        { "id": 6, "conditions": { "会員種別": "一般会員",       "累積購入金額": ">= 50000"       }, "results": { "キャンペーン対象": true  }, "notes": null },
-        { "id": 7, "conditions": { "会員種別": "プレミアム会員", "累積購入金額": "< 10000"        }, "results": { "キャンペーン対象": false }, "notes": null },
-        { "id": 8, "conditions": { "会員種別": "プレミアム会員", "累積購入金額": "10000 .. 49999" }, "results": { "キャンペーン対象": true  }, "notes": null },
-        { "id": 9, "conditions": { "会員種別": "プレミアム会員", "累積購入金額": ">= 50000"       }, "results": { "キャンペーン対象": true  }, "notes": null }
+        {
+          "id": 1,
+          "conditions": {
+            "会員種別": "非会員",
+            "累積購入金額": "< 10000"
+          },
+          "results": {
+            "キャンペーン対象": false
+          },
+          "notes": null
+        },
+        {
+          "id": 2,
+          "conditions": {
+            "会員種別": "非会員",
+            "累積購入金額": "10000 .. 49999"
+          },
+          "results": {
+            "キャンペーン対象": false
+          },
+          "notes": null
+        },
+        {
+          "id": 3,
+          "conditions": {
+            "会員種別": "非会員",
+            "累積購入金額": ">= 50000"
+          },
+          "results": {
+            "キャンペーン対象": false
+          },
+          "notes": null
+        },
+        {
+          "id": 4,
+          "conditions": {
+            "会員種別": "一般会員",
+            "累積購入金額": "< 10000"
+          },
+          "results": {
+            "キャンペーン対象": false
+          },
+          "notes": null
+        },
+        {
+          "id": 5,
+          "conditions": {
+            "会員種別": "一般会員",
+            "累積購入金額": "10000 .. 49999"
+          },
+          "results": {
+            "キャンペーン対象": false
+          },
+          "notes": null
+        },
+        {
+          "id": 6,
+          "conditions": {
+            "会員種別": "一般会員",
+            "累積購入金額": ">= 50000"
+          },
+          "results": {
+            "キャンペーン対象": true
+          },
+          "notes": null
+        },
+        {
+          "id": 7,
+          "conditions": {
+            "会員種別": "プレミアム会員",
+            "累積購入金額": "< 10000"
+          },
+          "results": {
+            "キャンペーン対象": false
+          },
+          "notes": null
+        },
+        {
+          "id": 8,
+          "conditions": {
+            "会員種別": "プレミアム会員",
+            "累積購入金額": "10000 .. 49999"
+          },
+          "results": {
+            "キャンペーン対象": true
+          },
+          "notes": null
+        },
+        {
+          "id": 9,
+          "conditions": {
+            "会員種別": "プレミアム会員",
+            "累積購入金額": ">= 50000"
+          },
+          "results": {
+            "キャンペーン対象": true
+          },
+          "notes": null
+        }
       ],
       "start_col": 1
     }
-  ],
-  "sheet_styles": {},
-  "sheet_dimensions": {}
+  ]
 }
