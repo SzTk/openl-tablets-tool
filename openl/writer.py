@@ -139,6 +139,29 @@ def _write_spreadsheet_table(ws: Worksheet, table: SpreadsheetTable) -> tuple[in
     return hdr_row, last_step_row
 
 
+def _style_spreadsheet_struct_row(ws: Worksheet, row_num: int, style_type: str) -> None:
+    """SpreadsheetTable のヘッダー行・末尾行に Bold / Border を適用する。
+
+    style_type: "header" または "last_step"
+    """
+    for col in (2, 3, 4):
+        cell = ws.cell(row=row_num, column=col)
+        # フォント名・サイズは既存の値を引き継ぎ、Bold だけ上書き
+        cell.font = Font(
+            name=cell.font.name,
+            size=cell.font.size,
+            bold=True,
+            italic=cell.font.italic,
+        )
+        if style_type == "last_step":
+            cell.border = Border(
+                top=Side(style="thin"),
+                bottom=cell.border.bottom,
+                left=cell.border.left,
+                right=cell.border.right,
+            )
+
+
 _WRITER_MAP = {
     "SimpleDecisionTable": _write_simple_decision_table,
     "DataTable": _write_data_table,
@@ -182,21 +205,6 @@ class OpenLWriter:
         # SpreadsheetTable のヘッダー行・末尾行に Bold / Border を適用
         for sheet_name, row_num, style_type in struct_targets:
             ws = wb[sheet_name]
-            for col in (2, 3, 4):
-                cell = ws.cell(row=row_num, column=col)
-                # フォント名・サイズは既存の値を引き継ぎ、Bold だけ上書き
-                cell.font = Font(
-                    name=cell.font.name,
-                    size=cell.font.size,
-                    bold=True,
-                    italic=cell.font.italic,
-                )
-                if style_type == "last_step":
-                    cell.border = Border(
-                        top=Side(style="thin"),
-                        bottom=cell.border.bottom,
-                        left=cell.border.left,
-                        right=cell.border.right,
-                    )
+            _style_spreadsheet_struct_row(ws, row_num, style_type)
 
         wb.save(str(path))

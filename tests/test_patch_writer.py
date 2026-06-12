@@ -11,7 +11,7 @@ from openl.patch_writer import (
     _row_cell_values,
     _set_cell,
 )
-from openl.models import Rule, DataTableRow, SpreadsheetStep, SimpleDecisionTable, ColumnDef
+from openl.models import Rule, DataTableRow, SpreadsheetStep, SimpleDecisionTable, SpreadsheetTable, ColumnDef
 
 SHOP_POLICY = Path(__file__).parent.parent / "examples" / "ShopPolicy.xlsx"
 AUTO_POLICY = Path(__file__).parent.parent / "examples" / "AutoPolicyCalculation.xlsx"
@@ -341,3 +341,87 @@ def test_patch_write_new_table_new_sheet_and_deleted_table(tmp_path):
     after = _all_cell_values(wb)
     assert after["PointRate"] == before["PointRate"]
     assert after["Calculation"] == before["Calculation"]
+
+
+def test_patch_write_append_spreadsheet_table_applies_header_styling(tmp_path):
+    from openl.patch_writer import patch_write
+
+    edited = OpenLReader().read(SHOP_POLICY)
+    edited.tables.append(SpreadsheetTable(
+        sheet_name="NewCalc",
+        title="",
+        description="Spreadsheet SpreadsheetResult NewCalc()",
+        parameters=[],
+        steps=[SpreadsheetStep(label="Step1", value="= 1 + 1", unit="計算結果")],
+        column_names=["Step", "Description", "Value"],
+        start_col=1,
+        notes=[],
+    ))
+
+    out_path = tmp_path / "out.xlsx"
+    patch_write(edited, SHOP_POLICY, out_path)
+
+    wb = openpyxl.load_workbook(out_path)
+    ws = wb["NewCalc"]
+
+    # 行1: シグネチャー, 行2: ヘッダー(Step/Description/Value), 行3: ステップ
+    assert ws.cell(1, 2).value == "Spreadsheet SpreadsheetResult NewCalc()"
+    assert [ws.cell(2, c).value for c in (2, 3, 4)] == ["Step", "Description", "Value"]
+    assert [ws.cell(3, c).value for c in (2, 3, 4)] == ["Step1", "計算結果", "= 1 + 1"]
+
+    # ヘッダー行(2)はBold
+    for col in (2, 3, 4):
+        assert ws.cell(2, col).font.bold is True
+
+    # 末尾ステップ行(3)もBold + 上部ボーダー
+    for col in (2, 3, 4):
+        assert ws.cell(3, col).font.bold is True
+        assert ws.cell(3, col).border.top.style == "thin"
+
+
+def test_patch_write_append_two_new_tables_to_new_sheet_inserts_separator(tmp_path):
+    from openl.patch_writer import patch_write
+
+    edited = OpenLReader().read(SHOP_POLICY)
+
+    edited.tables.append(SimpleDecisionTable(
+        sheet_name="NewSheet",
+        title="",
+        method_signature="SimpleRules Boolean TableA (String memberType)",
+        table_name="TableA",
+        conditions=[ColumnDef(name="会員種別", col_type="String", role="condition")],
+        results=[ColumnDef(name="結果A", col_type="String", role="result")],
+        rules=[Rule(id=1, conditions={"会員種別": "プレミアム会員"}, results={"結果A": True})],
+        start_col=1,
+    ))
+    edited.tables.append(SimpleDecisionTable(
+        sheet_name="NewSheet",
+        title="",
+        method_signature="SimpleRules Boolean TableB (String memberType)",
+        table_name="TableB",
+        conditions=[ColumnDef(name="会員種別", col_type="String", role="condition")],
+        results=[ColumnDef(name="結果B", col_type="String", role="result")],
+        rules=[Rule(id=1, conditions={"会員種別": "一般会員"}, results={"結果B": False})],
+        start_col=1,
+    ))
+
+    out_path = tmp_path / "out.xlsx"
+    patch_write(edited, SHOP_POLICY, out_path)
+
+    wb = openpyxl.load_workbook(out_path)
+    ws = wb["NewSheet"]
+
+    # TableA: 行1-3 (シグネチャ/ヘッダー/データ)
+    assert ws.cell(1, 2).value == "SimpleRules Boolean TableA (String memberType)"
+    assert [ws.cell(2, c).value for c in (2, 3)] == ["会員種別", "結果A"]
+    assert [ws.cell(3, c).value for c in (2, 3)] == ["プレミアム会員", True]
+
+    # 行4: 区切りの空行
+    assert ws.cell(4, 2).value is None
+
+    # TableB: 行5-7
+    assert ws.cell(5, 2).value == "SimpleRules Boolean TableB (String memberType)"
+    assert [ws.cell(6, c).value for c in (2, 3)] == ["会員種別", "結果B"]
+    assert [ws.cell(7, c).value for c in (2, 3)] == ["一般会員", False]
+
+    assert ws.max_row == 7

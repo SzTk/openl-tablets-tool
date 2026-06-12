@@ -17,7 +17,12 @@ from openpyxl.worksheet.worksheet import Worksheet
 
 from .models import AnyTable, OpenLWorkbook
 from .reader import ParsedTable, read_with_positions
-from .writer import _write_simple_decision_table, _write_data_table, _write_spreadsheet_table
+from .writer import (
+    _write_simple_decision_table,
+    _write_data_table,
+    _write_spreadsheet_table,
+    _style_spreadsheet_struct_row,
+)
 
 
 TableIdentity = tuple[str, str, str]
@@ -179,7 +184,13 @@ def _append_table(ws: Worksheet, table: AnyTable, *, separator: bool) -> None:
     has_content = any(c.value is not None for row in ws.iter_rows() for c in row)
     if separator and has_content:
         ws.append([])
-    _WRITER_MAP[table.table_kind](ws, table)
+    if table.table_kind == "SpreadsheetTable":
+        hdr_row, last_row = _write_spreadsheet_table(ws, table)
+        _style_spreadsheet_struct_row(ws, hdr_row, "header")
+        if last_row:
+            _style_spreadsheet_struct_row(ws, last_row, "last_step")
+    else:
+        _WRITER_MAP[table.table_kind](ws, table)
 
 
 def patch_write(edited: OpenLWorkbook, original_path: str | Path, out_path: str | Path) -> None:
@@ -215,8 +226,10 @@ def patch_write(edited: OpenLWorkbook, original_path: str | Path, out_path: str 
             else:
                 _patch_table_rows(ws, parsed, after)
 
+        appended_any = False
         for ident, table in after_by_id.items():
             if ident[0] == sheet_name and ident not in handled:
-                _append_table(ws, table, separator=sheet_name in original_sheets)
+                _append_table(ws, table, separator=sheet_name in original_sheets or appended_any)
+                appended_any = True
 
     wb.save(str(out_path))
