@@ -1,3 +1,4 @@
+from copy import copy
 from pathlib import Path
 
 import openpyxl
@@ -17,6 +18,12 @@ AUTO_POLICY = Path(__file__).parent.parent / "examples" / "AutoPolicyCalculation
 
 def _shop_policy():
     return OpenLReader().read(SHOP_POLICY)
+
+
+def _fonts_equal(font_a, font_b) -> bool:
+    """cell.font (StyleProxy) 同士は __eq__ の非対称性のため常に False になるため、
+    copy() で素の Font を取り出して比較する。"""
+    return copy(font_a) == copy(font_b)
 
 
 def test_table_identity_simple_decision_table():
@@ -118,3 +125,157 @@ def test_patch_write_value_change_preserves_everything_else(tmp_path):
     # 変更したセル以外はすべて一致
     after["FreeShipping"][2][3] = before["FreeShipping"][2][3]
     assert after == before
+
+
+from openl.models import Rule, DataTableRow, SpreadsheetStep
+
+
+def test_patch_write_append_rule_to_end(tmp_path):
+    from openl.patch_writer import patch_write
+
+    edited = OpenLReader().read(SHOP_POLICY)
+    table = edited.get_table("FreeShipping")
+    table.rules.append(Rule(
+        id=10,
+        conditions={"会員種別": "プレミアム会員", "購入金額": "special"},
+        results={"送料無料": True},
+    ))
+
+    out_path = tmp_path / "out.xlsx"
+    patch_write(edited, SHOP_POLICY, out_path)
+
+    wb = openpyxl.load_workbook(out_path)
+    ws = wb["FreeShipping"]
+
+    assert ws.max_row == 12
+    assert [ws.cell(12, c).value for c in (2, 3, 4)] == ["プレミアム会員", "special", True]
+
+    # 直前行（11行目）からスタイルがコピーされている
+    for col in (2, 3, 4):
+        assert _fonts_equal(ws.cell(12, col).font, ws.cell(11, col).font)
+        assert ws.cell(12, col).number_format == ws.cell(11, col).number_format
+
+    # 既存行は不変
+    before_wb = openpyxl.load_workbook(SHOP_POLICY)
+    before_ws = before_wb["FreeShipping"]
+    for r in range(1, 12):
+        assert [ws.cell(r, c).value for c in (2, 3, 4)] == \
+               [before_ws.cell(r, c).value for c in (2, 3, 4)]
+
+
+def test_patch_write_insert_rule_in_middle(tmp_path):
+    from openl.patch_writer import patch_write
+
+    edited = OpenLReader().read(SHOP_POLICY)
+    table = edited.get_table("FreeShipping")
+    new_rule = Rule(
+        id=99,
+        conditions={"会員種別": "一般会員", "購入金額": "1 .. 99"},
+        results={"送料無料": False},
+    )
+    table.rules.insert(2, new_rule)  # rule1, rule2 の後に挿入
+
+    out_path = tmp_path / "out.xlsx"
+    patch_write(edited, SHOP_POLICY, out_path)
+
+    wb = openpyxl.load_workbook(out_path)
+    ws = wb["FreeShipping"]
+    before_wb = openpyxl.load_workbook(SHOP_POLICY)
+    before_ws = before_wb["FreeShipping"]
+
+    assert ws.max_row == 12
+
+    # 行3,4（rule1,rule2）は不変
+    for r in (3, 4):
+        assert [ws.cell(r, c).value for c in (2, 3, 4)] == \
+               [before_ws.cell(r, c).value for c in (2, 3, 4)]
+
+    # 行5 に新規ルールが挿入され、スタイルは行4からコピー
+    assert [ws.cell(5, c).value for c in (2, 3, 4)] == ["一般会員", "1 .. 99", False]
+    for col in (2, 3, 4):
+        assert _fonts_equal(ws.cell(5, col).font, ws.cell(4, col).font)
+
+    # 行6〜12 に元rule3〜rule9がシフトしている
+    for offset, r in enumerate(range(6, 13)):
+        orig_r = 5 + offset
+        assert [ws.cell(r, c).value for c in (2, 3, 4)] == \
+               [before_ws.cell(orig_r, c).value for c in (2, 3, 4)]
+
+
+def test_patch_write_delete_rule(tmp_path):
+    from openl.patch_writer import patch_write
+
+    edited = OpenLReader().read(SHOP_POLICY)
+    table = edited.get_table("FreeShipping")
+    del table.rules[4]  # rule id=5 (一般会員 / 3000..9999) を削除
+
+    out_path = tmp_path / "out.xlsx"
+    patch_write(edited, SHOP_POLICY, out_path)
+
+    wb = openpyxl.load_workbook(out_path)
+    ws = wb["FreeShipping"]
+    before_wb = openpyxl.load_workbook(SHOP_POLICY)
+    before_ws = before_wb["FreeShipping"]
+
+    assert ws.max_row == 10
+
+    # 行3〜6（rule1〜4）は不変
+    for r in range(3, 7):
+        assert [ws.cell(r, c).value for c in (2, 3, 4)] == \
+               [before_ws.cell(r, c).value for c in (2, 3, 4)]
+
+    # 行7〜10 に元rule6〜rule9がシフトしている
+    for offset, r in enumerate(range(7, 11)):
+        orig_r = 8 + offset
+        assert [ws.cell(r, c).value for c in (2, 3, 4)] == \
+               [before_ws.cell(orig_r, c).value for c in (2, 3, 4)]
+
+
+def test_patch_write_add_data_table_row(tmp_path):
+    from openl.patch_writer import patch_write
+
+    edited = OpenLReader().read(AUTO_POLICY)
+    table = next(
+        t for t in edited.tables
+        if t.sheet_name == "Vocabulary" and getattr(t, "table_type", None) == "TheftRating"
+    )
+    table.rows.append(DataTableRow(data={"value": "VeryHigh"}))
+
+    out_path = tmp_path / "out.xlsx"
+    patch_write(edited, AUTO_POLICY, out_path)
+
+    wb = openpyxl.load_workbook(out_path)
+    ws = wb["Vocabulary"]
+    before_wb = openpyxl.load_workbook(AUTO_POLICY)
+    before_ws = before_wb["Vocabulary"]
+
+    # 新しい行が9行目（直前の8行目の直後）に挿入される
+    assert ws.cell(9, 3).value == "VeryHigh"
+    assert _fonts_equal(ws.cell(9, 3).font, ws.cell(8, 3).font)
+
+    # 既存の TheftRating 行 (6-8) と、後続の Datatype 宣言行は1行下にシフト
+    for r in (6, 7, 8):
+        assert ws.cell(r, 3).value == before_ws.cell(r, 3).value
+    assert ws.cell(12, 3).value == before_ws.cell(11, 3).value  # "Datatype InjuryRating <String>"
+
+
+def test_patch_write_add_spreadsheet_step(tmp_path):
+    from openl.patch_writer import patch_write
+
+    edited = OpenLReader().read(SHOP_POLICY)
+    table = edited.get_table("Calculation")
+    table.steps.append(SpreadsheetStep(label="Test", value="= 1 + 1", unit="テスト"))
+
+    out_path = tmp_path / "out.xlsx"
+    patch_write(edited, SHOP_POLICY, out_path)
+
+    wb = openpyxl.load_workbook(out_path)
+    ws = wb["Calculation"]
+
+    assert ws.max_row == 6
+    assert ws.cell(6, 2).value == "Test"
+    assert ws.cell(6, 3).value == "テスト"
+    assert ws.cell(6, 4).value == "= 1 + 1"
+    assert ws.cell(6, 4).data_type == "s"
+    for col in (2, 3, 4):
+        assert _fonts_equal(ws.cell(6, col).font, ws.cell(5, col).font)
