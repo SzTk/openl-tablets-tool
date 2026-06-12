@@ -168,19 +168,55 @@ def _patch_table_rows(ws: Worksheet, before: ParsedTable, after: AnyTable) -> No
             _insert_table_rows(ws, after, j1, j2, anchor, start_col)
 
 
+def _delete_table(ws: Worksheet, before: ParsedTable) -> None:
+    """before側のみに存在するテーブルの行範囲（シグネチャ行〜区切り空行まで）を削除する。"""
+    n = before.end_row - before.start_row + 1
+    ws.delete_rows(before.start_row, n)
+
+
+def _append_table(ws: Worksheet, table: AnyTable, *, separator: bool) -> None:
+    """afterのみに存在するテーブルをシート末尾に追記する。既存シートなら空行を挟む。"""
+    has_content = any(c.value is not None for row in ws.iter_rows() for c in row)
+    if separator and has_content:
+        ws.append([])
+    _WRITER_MAP[table.table_kind](ws, table)
+
+
 def patch_write(edited: OpenLWorkbook, original_path: str | Path, out_path: str | Path) -> None:
     """編集後の edited を、original_path の書式・レイアウトを保ったまま out_path に書き出す。"""
     wb = openpyxl.load_workbook(str(original_path))
     before_parsed = read_with_positions(original_path)
 
-    before_by_id = {_table_identity(p.table): p for p in before_parsed}
     after_by_id = {_table_identity(t): t for t in edited.tables}
 
-    for ident, parsed in before_by_id.items():
-        after = after_by_id.get(ident)
-        if after is None:
-            continue
-        ws = wb[ident[0]]
-        _patch_table_rows(ws, parsed, after)
+    original_sheets = set(wb.sheetnames)
+    sheet_names = {p.table.sheet_name for p in before_parsed} | \
+        {t.sheet_name for t in edited.tables}
+
+    for sheet_name in sheet_names:
+        if sheet_name not in wb.sheetnames:
+            wb.create_sheet(title=sheet_name)
+        ws = wb[sheet_name]
+
+        # 行の挿入/削除によるズレを避けるため、行番号の大きい方から処理する
+        sheet_before = sorted(
+            (p for p in before_parsed if p.table.sheet_name == sheet_name),
+            key=lambda p: p.start_row,
+            reverse=True,
+        )
+        handled: set[TableIdentity] = set()
+
+        for parsed in sheet_before:
+            ident = _table_identity(parsed.table)
+            handled.add(ident)
+            after = after_by_id.get(ident)
+            if after is None:
+                _delete_table(ws, parsed)
+            else:
+                _patch_table_rows(ws, parsed, after)
+
+        for ident, table in after_by_id.items():
+            if ident[0] == sheet_name and ident not in handled:
+                _append_table(ws, table, separator=sheet_name in original_sheets)
 
     wb.save(str(out_path))

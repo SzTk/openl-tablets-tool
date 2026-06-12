@@ -11,7 +11,7 @@ from openl.patch_writer import (
     _row_cell_values,
     _set_cell,
 )
-from openl.models import Rule, DataTableRow, SpreadsheetStep
+from openl.models import Rule, DataTableRow, SpreadsheetStep, SimpleDecisionTable, ColumnDef
 
 SHOP_POLICY = Path(__file__).parent.parent / "examples" / "ShopPolicy.xlsx"
 AUTO_POLICY = Path(__file__).parent.parent / "examples" / "AutoPolicyCalculation.xlsx"
@@ -277,3 +277,67 @@ def test_patch_write_add_spreadsheet_step(tmp_path):
     assert ws.cell(6, 4).data_type == "s"
     for col in (2, 3, 4):
         assert _fonts_equal(ws.cell(6, col).font, ws.cell(5, col).font)
+
+
+def test_patch_write_new_table_new_sheet_and_deleted_table(tmp_path):
+    from openl.patch_writer import patch_write
+
+    edited = OpenLReader().read(SHOP_POLICY)
+
+    # (a) 既存シート(FreeShipping)に新規テーブルを追記
+    edited.tables.append(SimpleDecisionTable(
+        sheet_name="FreeShipping",
+        title="",
+        method_signature="SimpleRules Boolean IsExpressShipping (String memberType)",
+        table_name="IsExpressShipping",
+        conditions=[ColumnDef(name="会員種別", col_type="String", role="condition")],
+        results=[ColumnDef(name="速達無料", col_type="String", role="result")],
+        rules=[Rule(id=1, conditions={"会員種別": "プレミアム会員"}, results={"速達無料": True})],
+        start_col=1,
+    ))
+
+    # (b) 新規シート(Promotions)に新規テーブルを追記
+    edited.tables.append(SimpleDecisionTable(
+        sheet_name="Promotions",
+        title="",
+        method_signature="SimpleRules Boolean IsPromotionEligible (String memberType)",
+        table_name="IsPromotionEligible",
+        conditions=[ColumnDef(name="会員種別", col_type="String", role="condition")],
+        results=[ColumnDef(name="対象", col_type="String", role="result")],
+        rules=[Rule(id=1, conditions={"会員種別": "一般会員"}, results={"対象": True})],
+        start_col=1,
+    ))
+
+    # (c) CampaignTarget のテーブルを削除
+    edited.tables = [t for t in edited.tables if t.sheet_name != "CampaignTarget"]
+
+    out_path = tmp_path / "out.xlsx"
+    patch_write(edited, SHOP_POLICY, out_path)
+
+    wb = openpyxl.load_workbook(out_path)
+
+    # (a) FreeShipping: 元の11行 + 空行1 + 新規テーブル3行 = 15行
+    ws = wb["FreeShipping"]
+    assert ws.max_row == 15
+    assert ws.cell(12, 2).value is None  # 区切りの空行
+    assert ws.cell(13, 2).value == "SimpleRules Boolean IsExpressShipping (String memberType)"
+    assert [ws.cell(14, c).value for c in (2, 3)] == ["会員種別", "速達無料"]
+    assert [ws.cell(15, c).value for c in (2, 3)] == ["プレミアム会員", True]
+
+    # (b) Promotions: 新規シート、区切り無しで3行
+    assert "Promotions" in wb.sheetnames
+    ws_promo = wb["Promotions"]
+    assert ws_promo.cell(1, 2).value == "SimpleRules Boolean IsPromotionEligible (String memberType)"
+    assert [ws_promo.cell(2, c).value for c in (2, 3)] == ["会員種別", "対象"]
+    assert [ws_promo.cell(3, c).value for c in (2, 3)] == ["一般会員", True]
+
+    # (c) CampaignTarget: テーブルが削除されている
+    result = OpenLReader().read(out_path)
+    assert result.get_table("CampaignTarget") is None
+
+    # PointRate / Calculation は完全に不変
+    before_wb = openpyxl.load_workbook(SHOP_POLICY)
+    before = _all_cell_values(before_wb)
+    after = _all_cell_values(wb)
+    assert after["PointRate"] == before["PointRate"]
+    assert after["Calculation"] == before["Calculation"]
