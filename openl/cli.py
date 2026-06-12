@@ -18,6 +18,7 @@ import yaml
 from .models import OpenLWorkbook
 from .reader import OpenLReader
 from .writer import OpenLWriter
+from .patch_writer import patch_write
 
 
 def _load_workbook(path: Path) -> OpenLWorkbook:
@@ -62,8 +63,15 @@ def cmd_read(args: argparse.Namespace) -> None:
     _print_summary(wb)
 
 
+def _resolve_source_path(src: Path, wb: OpenLWorkbook, source_override: str | None) -> Path:
+    """元のExcelファイルパスを解決する。--source指定があればそれを優先する。"""
+    if source_override:
+        return Path(source_override)
+    return src.parent / wb.source_file
+
+
 def cmd_write(args: argparse.Namespace) -> None:
-    """JSON / YAML → Excel"""
+    """JSON / YAML → Excel（元ファイルが見つかればパッチモード、なければフルリビルド）"""
     src = Path(args.input)
     wb = _load_workbook(src)
 
@@ -72,7 +80,14 @@ def cmd_write(args: argparse.Namespace) -> None:
     else:
         out = src.with_suffix(".xlsx")
 
-    OpenLWriter().write(wb, out)
+    original_path = _resolve_source_path(src, wb, args.source)
+    if original_path.exists():
+        patch_write(wb, original_path, out)
+        print(f"パッチモード: {original_path} → {out}")
+    else:
+        OpenLWriter().write(wb, out)
+        print(f"元ファイルが見つからないためフルリビルドします（{original_path}）")
+
     print(f"読み込み完了: {src}")
     print(f"出力        : {out}")
     _print_summary(wb)
@@ -122,6 +137,7 @@ def main() -> None:
     p_write = sub.add_parser("write", help="JSON / YAML → Excel")
     p_write.add_argument("input", help="入力ファイル (.json / .yaml)")
     p_write.add_argument("--out", help="出力Excelパス（省略時: 入力と同ディレクトリ）")
+    p_write.add_argument("--source", help="元のExcelファイルパス（省略時: 入力と同ディレクトリの source_file）")
 
     # roundtrip
     p_rt = sub.add_parser("roundtrip", help="Excel → モデル → Excel（動作確認）")

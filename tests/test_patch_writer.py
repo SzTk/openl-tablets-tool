@@ -93,11 +93,22 @@ def test_set_cell_writes_plain_value():
 
 
 def _all_cell_values(wb):
-    """openpyxl Workbook の全シート・全セル値を {sheet_name: [[...], ...]} で返す。"""
-    return {
-        name: [[c.value for c in row] for row in wb[name].iter_rows()]
-        for name in wb.sheetnames
-    }
+    """openpyxl Workbook の全シート・全セル値を {sheet_name: [[...], ...]} で返す。
+
+    各行末尾の None セルは比較対象外とする。openpyxl は保存時にシートの
+    dimensions を実際の内容に合わせて再計算するため、編集前後で末尾の
+    空セル数が変わることがある（実際の値には影響しない）。
+    """
+    result = {}
+    for name in wb.sheetnames:
+        rows = []
+        for row in wb[name].iter_rows():
+            values = [c.value for c in row]
+            while values and values[-1] is None:
+                values.pop()
+            rows.append(values)
+        result[name] = rows
+    return result
 
 
 def test_patch_write_value_change_preserves_everything_else(tmp_path):
@@ -461,3 +472,48 @@ def test_patch_write_append_two_new_tables_to_new_sheet_inserts_separator(tmp_pa
     assert [ws.cell(7, c).value for c in (2, 3)] == ["一般会員", False]
 
     assert ws.max_row == 7
+
+
+def test_patch_write_integration_auto_policy_accidents_condition(tmp_path):
+    from openl.patch_writer import patch_write
+
+    edited = OpenLReader().read(AUTO_POLICY)
+    # 注意: AutoPolicyCalculation.xlsx には Vocabulary シートにも
+    # table_name="DriverRisk" の DataTable (Datatype) が存在するため、
+    # table_kind で SimpleDecisionTable に絞り込む。
+    table = next(
+        t for t in edited.tables
+        if t.table_kind == "SimpleDecisionTable" and t.table_name == "DriverRisk"
+    )
+    rule = next(r for r in table.rules if r.id == 2)
+    assert rule.conditions["Accidents"] == ">2"
+    rule.conditions["Accidents"] = ">=10"
+
+    out_path = tmp_path / "out.xlsx"
+    patch_write(edited, AUTO_POLICY, out_path)
+
+    before_wb = openpyxl.load_workbook(AUTO_POLICY)
+    after_wb = openpyxl.load_workbook(out_path)
+    before_ws = before_wb["Driver-Eligibility"]
+    after_ws = after_wb["Driver-Eligibility"]
+
+    # (a) 値が正しく変わる
+    assert before_ws.cell(28, 4).value == ">2"
+    assert after_ws.cell(28, 4).value == ">=10"
+
+    # (b) ヘッダー行のBoldフォント・テーマカラー（背景塗りつぶし）が保持される
+    before_header = before_ws.cell(26, 4)
+    after_header = after_ws.cell(26, 4)
+    assert after_header.font.bold is True and before_header.font.bold is True
+    assert after_header.fill.fgColor.theme == before_header.fill.fgColor.theme
+    assert after_header.fill.fgColor.tint == before_header.fill.fgColor.tint
+
+    # (c) 編集対象外の行数・列幅・行高は不変
+    assert after_ws.max_row == before_ws.max_row == 31
+    for r in range(25, 32):
+        assert after_ws.row_dimensions[r].height == before_ws.row_dimensions[r].height
+    for col in "ABCDEFG":
+        assert after_ws.column_dimensions[col].width == before_ws.column_dimensions[col].width
+
+    # 他のシートは完全に不変
+    assert _all_cell_values(after_wb)["Vehicle-Eligibility"] == _all_cell_values(before_wb)["Vehicle-Eligibility"]
