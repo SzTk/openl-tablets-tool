@@ -1,6 +1,6 @@
 ---
 name: openl-tablets-deploy
-description: openl-tablets-create / openl-tablets-edit で作成・編集した Excel を Azure 上の OpenL Tablets インスタンスにデプロイし、REST API として動作確認する。
+description: Use when deploying an Excel file created or edited with openl-tablets-create / openl-tablets-edit to an OpenL Tablets instance on Azure and verifying it works as a REST API.
 license: MIT
 metadata:
   argument-hint: "<excel_file_path>"

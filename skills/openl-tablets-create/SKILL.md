@@ -1,6 +1,6 @@
 ---
 name: openl-tablets-create
-description: OpenL Tablets 形式の Excel ファイルを対話的に新規作成する。API出力項目→計算ロジック→マスタデータの順でヒアリングし、JSON を生成・往復検証して Excel を出力する。
+description: Use when creating a new OpenL Tablets Excel file from scratch through an interactive interview (API output fields → calculation logic → master data), generating and round-trip validating JSON before exporting to Excel.
 license: MIT
 metadata:
   argument-hint: "[output_file_name]"
