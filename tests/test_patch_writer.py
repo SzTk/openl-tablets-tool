@@ -11,6 +11,7 @@ from openl.patch_writer import (
     _row_cell_values,
     _set_cell,
 )
+from openl.models import Rule, DataTableRow, SpreadsheetStep
 
 SHOP_POLICY = Path(__file__).parent.parent / "examples" / "ShopPolicy.xlsx"
 AUTO_POLICY = Path(__file__).parent.parent / "examples" / "AutoPolicyCalculation.xlsx"
@@ -125,9 +126,6 @@ def test_patch_write_value_change_preserves_everything_else(tmp_path):
     # 変更したセル以外はすべて一致
     after["FreeShipping"][2][3] = before["FreeShipping"][2][3]
     assert after == before
-
-
-from openl.models import Rule, DataTableRow, SpreadsheetStep
 
 
 def test_patch_write_append_rule_to_end(tmp_path):
