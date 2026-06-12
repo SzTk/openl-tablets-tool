@@ -110,18 +110,21 @@ def _write_spreadsheet_table(ws: Worksheet, table: SpreadsheetTable) -> tuple[in
     戻り値: (header_row_num, last_step_row_num | None)
       - 呼び出し側がヘッダー行・末尾行に Bold / Border を適用するために使う。
     """
+    prefix: list = [None] * table.start_col
+
     # 行1: 関数シグネチャー（OpenL "Spreadsheet" キーワード行）
-    _append_row(ws, [None, table.description])
+    _append_row(ws, prefix + [table.description])
 
     # 行2: カラムヘッダー
-    _append_row(ws, [None] + list(table.column_names))
+    _append_row(ws, prefix + list(table.column_names))
     hdr_row = ws.max_row
 
     # 行3+: 計算ステップ（column_names の列数に合わせて書く）
     # "= ..." で始まる OpenL 式は Excel 数式に解釈されないようテキスト型で書く
     three_cols = len(table.column_names) >= 3
     for step in table.steps:
-        row_values = [None, step.label, step.unit, step.value] if three_cols else [None, step.label, step.value]
+        vals = [step.label, step.unit, step.value] if three_cols else [step.label, step.value]
+        row_values = prefix + vals
         _append_row(ws, row_values)
         step_row = ws.max_row
         for col_idx, val in enumerate(row_values, start=1):
@@ -134,17 +137,19 @@ def _write_spreadsheet_table(ws: Worksheet, table: SpreadsheetTable) -> tuple[in
 
     # 備考
     for note in table.notes:
-        _append_row(ws, [None, note])
+        _append_row(ws, prefix + [note])
 
     return hdr_row, last_step_row
 
 
-def _style_spreadsheet_struct_row(ws: Worksheet, row_num: int, style_type: str) -> None:
+def _style_spreadsheet_struct_row(ws: Worksheet, row_num: int, style_type: str, start_col: int) -> None:
     """SpreadsheetTable のヘッダー行・末尾行に Bold / Border を適用する。
 
     style_type: "header" または "last_step"
+    start_col : テーブルの開始列（0-based の列インデックス）。データ列は
+                start_col+1 .. start_col+3 (1-based) に位置する。
     """
-    for col in (2, 3, 4):
+    for col in (start_col + 1, start_col + 2, start_col + 3):
         cell = ws.cell(row=row_num, column=col)
         # フォント名・サイズは既存の値を引き継ぎ、Bold だけ上書き
         cell.font = Font(
@@ -179,8 +184,8 @@ class OpenLWriter:
         wb.remove(wb.active)  # デフォルトシートを削除
 
         # SpreadsheetTable の構造スタイル適用対象行を収集
-        # (sheet_name, row_num, 'header' | 'last_step')
-        struct_targets: list[tuple[str, int, str]] = []
+        # (sheet_name, row_num, 'header' | 'last_step', start_col)
+        struct_targets: list[tuple[str, int, str, int]] = []
 
         # 同じ sheet_name を持つテーブルは同じシートに追記する
         for table in workbook.tables:
@@ -196,15 +201,15 @@ class OpenLWriter:
 
             if table.table_kind == "SpreadsheetTable":
                 hdr_row, last_row = writer_fn(ws, table)
-                struct_targets.append((table.sheet_name, hdr_row, "header"))
+                struct_targets.append((table.sheet_name, hdr_row, "header", table.start_col))
                 if last_row:
-                    struct_targets.append((table.sheet_name, last_row, "last_step"))
+                    struct_targets.append((table.sheet_name, last_row, "last_step", table.start_col))
             else:
                 writer_fn(ws, table)
 
         # SpreadsheetTable のヘッダー行・末尾行に Bold / Border を適用
-        for sheet_name, row_num, style_type in struct_targets:
+        for sheet_name, row_num, style_type, start_col in struct_targets:
             ws = wb[sheet_name]
-            _style_spreadsheet_struct_row(ws, row_num, style_type)
+            _style_spreadsheet_struct_row(ws, row_num, style_type, start_col)
 
         wb.save(str(path))

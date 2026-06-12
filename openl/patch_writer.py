@@ -186,9 +186,9 @@ def _append_table(ws: Worksheet, table: AnyTable, *, separator: bool) -> None:
         ws.append([])
     if table.table_kind == "SpreadsheetTable":
         hdr_row, last_row = _write_spreadsheet_table(ws, table)
-        _style_spreadsheet_struct_row(ws, hdr_row, "header")
+        _style_spreadsheet_struct_row(ws, hdr_row, "header", table.start_col)
         if last_row:
-            _style_spreadsheet_struct_row(ws, last_row, "last_step")
+            _style_spreadsheet_struct_row(ws, last_row, "last_step", table.start_col)
     else:
         _WRITER_MAP[table.table_kind](ws, table)
 
@@ -197,8 +197,10 @@ def _recreate_table(ws: Worksheet, before: ParsedTable, after: AnyTable) -> None
     """列構成が変わったテーブルを削除して同じ位置に再作成する。
 
     このテーブルのみ書式が openpyxl デフォルトに戻る（他のテーブル・セルは無影響）。
+    削除/挿入の対象はテーブル本体（header_rows + item_rows）のみとし、
+    end_row に含まれる末尾の区切り空行・備考行はそのまま残す。
     """
-    n_before = before.end_row - before.start_row + 1
+    n_before = before.header_rows + len(before.item_rows)
     ws.delete_rows(before.start_row, n_before)
 
     tmp_ws = openpyxl.Workbook().active

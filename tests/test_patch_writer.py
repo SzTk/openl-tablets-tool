@@ -426,6 +426,100 @@ def test_patch_write_condition_column_added_recreates_table(tmp_path):
         assert after[sheet] == before[sheet]
 
 
+def test_patch_write_recreate_table_preserves_trailing_separator_rows(tmp_path):
+    from openl.patch_writer import patch_write
+    from openl.reader import read_with_positions
+
+    edited = OpenLReader().read(AUTO_POLICY)
+    table = next(
+        t for t in edited.tables
+        if t.table_kind == "SimpleDecisionTable" and t.table_name == "VehicleTheftRating"
+    )
+    table.conditions.append(ColumnDef(name="新条件", col_type="String", role="condition"))
+    for rule in table.rules:
+        rule.conditions["新条件"] = "test"
+
+    out_path = tmp_path / "out.xlsx"
+    patch_write(edited, AUTO_POLICY, out_path)
+
+    before_wb = openpyxl.load_workbook(AUTO_POLICY)
+    after_wb = openpyxl.load_workbook(out_path)
+    before_ws = before_wb["Vehicle-Eligibility"]
+    after_ws = after_wb["Vehicle-Eligibility"]
+
+    # VehicleTheftRating は元の位置(4-10)のまま、新しい列が追加される
+    assert [after_ws.cell(5, c).value for c in (3, 4, 5, 6, 7)] == \
+        ["Body Type", "Price", "High Theft List", "新条件", "Theft Rating"]
+    assert after_ws.cell(6, 6).value == "test"
+
+    # 区切りの空行 (11-15) はそのまま残る
+    for r in range(11, 16):
+        assert all(c.value is None for c in after_ws[r])
+
+    # 2番目のテーブル(VehicleInjuryRating)は行位置・内容ともに不変
+    # （末尾の None セルはシートの max_column 再計算により変動するため比較対象外）
+    for r in range(16, 28):
+        before_vals = [c.value for c in before_ws[r]]
+        after_vals = [c.value for c in after_ws[r]]
+        while before_vals and before_vals[-1] is None:
+            before_vals.pop()
+        while after_vals and after_vals[-1] is None:
+            after_vals.pop()
+        assert after_vals == before_vals
+
+    # 再パースしても2番目のテーブルは元のstart_rowで見つかる
+    result = read_with_positions(out_path)
+    injury = next(
+        p for p in result
+        if p.table.sheet_name == "Vehicle-Eligibility" and p.table.table_kind == "SimpleDecisionTable"
+        and p.table.table_name == "VehicleInjuryRating"
+    )
+    assert injury.start_row == 16
+
+
+def test_patch_write_recreate_spreadsheet_table_respects_start_col(tmp_path):
+    from openl.patch_writer import patch_write
+    from openl.reader import read_with_positions
+
+    edited = OpenLReader().read(AUTO_POLICY)
+    table = next(
+        t for t in edited.tables
+        if t.sheet_name == "Calculation" and t.table_kind == "SpreadsheetTable"
+        and _table_identity(t)[2] == "DetermineVehiclePremium"
+    )
+    assert table.start_col == 2
+    table.column_names = table.column_names + ["Unit"]
+
+    out_path = tmp_path / "out.xlsx"
+    patch_write(edited, AUTO_POLICY, out_path)
+
+    wb = openpyxl.load_workbook(out_path)
+    ws = wb["Calculation"]
+
+    # start_col=2 → シグネチャー・ヘッダーは列C(3列目)から始まる
+    assert ws.cell(9, 2).value is None
+    assert ws.cell(9, 3).value == table.description
+    assert [ws.cell(10, c).value for c in (3, 4, 5, 6)] == ["Step", "Description", "Value", "Unit"]
+    assert ws.cell(10, 2).value is None
+
+    # 後続テーブル(DetermineDriverPremium)の位置は不変
+    result = read_with_positions(out_path)
+    driver_premium = next(
+        p for p in result
+        if p.table.sheet_name == "Calculation" and p.table.table_kind == "SpreadsheetTable"
+        and _table_identity(p.table)[2] == "DetermineDriverPremium"
+    )
+    assert driver_premium.start_row == 29
+
+    # 再パースしても start_col=2 を維持
+    recreated = next(
+        p for p in result
+        if p.table.sheet_name == "Calculation" and p.table.table_kind == "SpreadsheetTable"
+        and _table_identity(p.table)[2] == "DetermineVehiclePremium"
+    )
+    assert recreated.table.start_col == 2
+
+
 def test_patch_write_append_two_new_tables_to_new_sheet_inserts_separator(tmp_path):
     from openl.patch_writer import patch_write
 
